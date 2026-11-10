@@ -344,6 +344,7 @@ function initialize() {
     panel = el('section', { 'data-tab': 'mods', className: 'du-panel' });
     root.appendChild(panel);
   }
+  panel.id = 'du-panel';
   renderMods(panel);
   renderFakeVoice();
   ensureSweep();
