@@ -1,12 +1,22 @@
-# instalar.ps1 — instala o plugin em %APPDATA%
+# instalar.ps1 — Bootstrap do instalador gráfico
 $ErrorActionPreference = 'Stop'
 
-$Install = Join-Path $env:APPDATA 'discord-utis-mod'
-New-Item -ItemType Directory -Force -Path $Install | Out-Null
+$url = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/install-plugin.ps1'
+$temp = Join-Path ([System.IO.Path]::GetTempPath()) ('discord-utis-mod-installer-' + [guid]::NewGuid().ToString('N') + '.ps1')
 
-$base = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/plugin'
-@('inject.js','renderer.js','style.css','settings.json') | ForEach-Object {
-    Invoke-WebRequest "$base/$_" -OutFile (Join-Path $Install $_)
+try {
+    Write-Host 'Baixando instalador com painel...' -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $url -OutFile $temp -UseBasicParsing
+    if (-not (Test-Path $temp) -or (Get-Item $temp).Length -lt 100) {
+        throw 'O instalador baixado está vazio ou incompleto.'
+    }
+
+    Write-Host 'Abrindo painel de instalação...' -ForegroundColor Cyan
+    & $temp
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        throw "O instalador terminou com código $LASTEXITCODE."
+    }
 }
-
-Write-Host "Plugin instalado em: $Install" -ForegroundColor Green
+finally {
+    Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+}
