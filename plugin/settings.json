@@ -1,0 +1,17 @@
+{
+  "mods": {
+    "fakeVoice": false,
+    "msgLogger": false,
+    "msgEditor": false
+  },
+  "modsOn": {
+    "fakeVoice": false,
+    "fakeMute": false,
+    "fakeDeafen": false,
+    "fakeChan": false,
+    "msgLogger": false,
+    "msgEditor": false,
+    "loggerScope": "all"
+  },
+  "overrides": {}
+}

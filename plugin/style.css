@@ -1,0 +1,153 @@
+/* plugin/style.css */
+.du-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  color: #f4f4f5;
+  background: rgba(20, 24, 30, 0.96);
+  border-radius: 12px;
+  max-width: 420px;
+}
+
+.du-mods-note {
+  font-size: 12px;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.du-tg {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #1f232b;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.du-tg:hover {
+  background: #2a2f3a;
+}
+
+.du-tg.on {
+  border-color: #7cc3ff;
+  box-shadow: inset 0 0 0 1px rgba(124, 195, 255, 0.4);
+}
+
+.tgi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+}
+
+.tgt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.tgt small {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.du-sw {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
+}
+
+.du-tg.on .du-sw {
+  background: #64d2ff;
+}
+
+.du-input {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.du-ta {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.du-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  background: #2a6cf5;
+}
+
+.du-btn.red {
+  background: #d14d4d;
+}
+
+.du-btn.acc {
+  background: #2f8bff;
+}
+
+.du-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.du-pill {
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: #fff;
+  cursor: pointer;
+}
+
+.du-pill.on {
+  background: #285fd9;
+}
+
+.du-ovlist {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.du-logrow {
+  display: flex;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.du-empty {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.du-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
