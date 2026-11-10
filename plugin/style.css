@@ -9,145 +9,31 @@
   max-width: 420px;
 }
 
-.du-mods-note {
-  font-size: 12px;
-  opacity: 0.8;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.du-tg {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  background: #1f232b;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.du-tg:hover {
-  background: #2a2f3a;
-}
-
-.du-tg.on {
-  border-color: #7cc3ff;
-  box-shadow: inset 0 0 0 1px rgba(124, 195, 255, 0.4);
-}
-
-.tgi {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.05);
-}
-
-.tgt {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.tgt small {
-  opacity: 0.7;
-  font-size: 11px;
-}
-
-.du-sw {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.12);
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
-}
-
-.du-tg.on .du-sw {
-  background: #64d2ff;
-}
-
-.du-input {
-  width: 100%;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.03);
-  color: #fff;
-  border-radius: 8px;
-  padding: 8px 10px;
-  box-sizing: border-box;
-}
-
-.du-ta {
-  min-height: 72px;
-  resize: vertical;
-}
-
-.du-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
-  padding: 9px 12px;
-  border: 0;
-  border-radius: 10px;
-  cursor: pointer;
-  color: #fff;
-  background: #2a6cf5;
-}
-
-.du-btn.red {
-  background: #d14d4d;
-}
-
-.du-btn.acc {
-  background: #2f8bff;
-}
-
-.du-pills {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.du-pill {
-  padding: 6px 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.03);
-  color: #fff;
-  cursor: pointer;
-}
-
-.du-pill.on {
-  background: #285fd9;
-}
-
-.du-ovlist {
-  display: grid;
-  gap: 6px;
-  max-height: 180px;
-  overflow: auto;
-}
-
-.du-logrow {
-  display: flex;
-  padding: 7px 8px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.04);
-}
-
-.du-empty {
-  opacity: 0.7;
-  font-size: 12px;
-}
-
-.du-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+.du-mods-note { font-size: 12px; opacity: .8; letter-spacing: .04em; text-transform: uppercase; }
+.du-tg { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: #1f232b; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; cursor: pointer; transition: .2s ease; }
+.du-tg:hover { background: #2a2f3a; }
+.du-tg.on { border-color: #7cc3ff; box-shadow: inset 0 0 0 1px rgba(124,195,255,.4); }
+.tgi { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.05); }
+.tgt { display: flex; flex: 1; flex-direction: column; line-height: 1.2; }
+.tgt small { opacity: .7; font-size: 11px; }
+.du-sw { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 2px rgba(255,255,255,.06); }
+.du-tg.on .du-sw { background: #64d2ff; }
+.du-input { width: 100%; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); color: #fff; border-radius: 8px; padding: 8px 10px; box-sizing: border-box; }
+.du-ta { min-height: 72px; resize: vertical; }
+.du-btn { display: inline-flex; align-items: center; gap: 8px; justify-content: center; padding: 9px 12px; border: 0; border-radius: 10px; cursor: pointer; color: #fff; background: #2a6cf5; }
+.du-btn.red { background: #d14d4d; }
+.du-btn.acc { background: #2f8bff; }
+.du-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.du-pill { padding: 6px 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); color: #fff; cursor: pointer; }
+.du-pill.on { background: #285fd9; }
+.du-ovlist { display: grid; gap: 6px; max-height: 180px; overflow: auto; }
+.du-logrow { display: flex; padding: 7px 8px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.04); }
+.du-empty { opacity: .7; font-size: 12px; }
+.du-icon { display: inline-flex; align-items: center; justify-content: center; }
+.du-group { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
+.du-head { font-weight: 600; }
+.du-warning { color: #ffd479; font-size: 11px; }
+#du-fakevoice { position: fixed; z-index: 999999; right: 24px; bottom: 24px; display: grid; gap: 7px; min-width: 210px; padding: 12px; color: #fff; background: #20242c; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.4); pointer-events: none; }
+.fv-name { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.fv-sub { color: #ffd479; font-size: 11px; }
+.fv-actions { display: flex; justify-content: space-between; gap: 8px; color: #c9cbd1; font-size: 11px; }
