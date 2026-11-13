@@ -1710,7 +1710,28 @@ if (window.__DiscordUtilsLoaded) {  } else {
       applyEnabledOpts();
       startQuestWatch();
       const u = currentUser(); if (u) { MY_ID = u.id; if (!cache.get('profile')) loadProfile(); }
-      window.DiscordUtils = { find, findByProps, findByMethods, Stores, req, getToken, jobs, settings: NSET, loadOrbs, questWatchTick, open: () => togglePanel(true), async debug() { const info = { webpack: !!getRequire(), hasToken: !!getToken(), user: currentUser(), devtools: { enabled: !!NSET.devtools, activeThisSession: !!window.__DU_DEVTOOLS_ACTIVE__ }, jobs: jobs.length }; console.log(`[${NS}] debug`, info); return info; } };
+      window.DiscordUtils = { find, findByProps, findByMethods, Stores, req, getToken, jobs, settings: NSET, loadOrbs, questWatchTick,
+        voiceModStatus: () => {
+          const original = duVoiceMod.packet && duVoiceMod.packet.d;
+          const wanted = original && duVoiceOutgoing({d:original}).d;
+          const remote = duVoiceMod.remote;
+          return {
+            fakeMute: duVoiceMod.mute,
+            fakeVoice: duVoiceMod.voice,
+            gatewayHook: duVoiceMod.hookReady,
+            gatewaySocket: !!(duVoiceMod.socket && duVoiceMod.socket.readyState === 1),
+            voiceChannelDetected: !!(original && original.channel_id),
+            sentVoiceFrames: duVoiceMod.forwarded,
+            remoteVoiceConfirmed: !!(wanted && remote &&
+              remote.mute === wanted.self_mute && remote.voice === wanted.self_deaf),
+            remoteMute: remote ? remote.mute : null,
+            remoteDeaf: remote ? remote.voice : null,
+            localButtonsFound: Object.assign({},duVoiceMod.voiceUi),
+            // Audio deve ser confirmado por uma segunda conta.
+            microphoneAudible: null,
+            outputAudible: null
+          };
+        }, open: () => togglePanel(true), async debug() { const info = { webpack: !!getRequire(), hasToken: !!getToken(), user: currentUser(), devtools: { enabled: !!NSET.devtools, activeThisSession: !!window.__DU_DEVTOOLS_ACTIVE__ }, jobs: jobs.length }; console.log(`[${NS}] debug`, info); return info; } };
       log('pronto.');
     }
     function waitAndStart(tries = 0) { if (tries > 150) { log('desisti de esperar o Discord.'); return; } if (document.body && window.webpackChunkdiscord_app) { start(); return; } setTimeout(() => waitAndStart(tries + 1), 300); }
