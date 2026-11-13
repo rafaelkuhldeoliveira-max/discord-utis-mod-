@@ -132,7 +132,7 @@ function looksLikePlugin(text) {
 async function updateFromRepo() {
   if (SETTINGS.autoUpdate === false || !SETTINGS.repo) return;
   const branch = SETTINGS.branch || 'main';
-  const repoDir = String(SETTINGS.repoPath || 'plugin').replace(/^\\/+|\\/+$/g, '');
+  const repoDir = String(SETTINGS.repoPath || 'plugin');
   const base = 'https://raw.githubusercontent.com/' + SETTINGS.repo + '/' + branch + '/' + repoDir + '/';
   for (const name of ['renderer.js', 'inject.js']) {
     try {
