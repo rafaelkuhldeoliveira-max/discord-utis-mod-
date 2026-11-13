@@ -1374,7 +1374,10 @@ if (window.__DiscordUtilsLoaded) {  } else {
       packet: null,
       kind: 'text',
       forwarded: 0,
-      hookReady: false
+      hookReady: false,
+      remote: null,
+      outboundAt: 0,
+      voiceUi: { muteFound: false, voiceFound: false }
     };
 
     function duVoiceRead(input) {
@@ -1411,6 +1414,26 @@ if (window.__DiscordUtilsLoaded) {  } else {
       return Object.assign({}, packet, { d });
     }
 
+
+    // Confirmacao opcional: somente eventos do proprio usuario na mesma chamada.
+    function duVoiceRemoteMessage(event) {
+      let raw = event && event.data;
+      if (typeof raw !== 'string' || !raw.includes('VOICE_STATE_UPDATE')) return;
+      try {
+        const p = JSON.parse(raw);
+        if (!p || p.t !== 'VOICE_STATE_UPDATE' || !p.d) return;
+        const me = currentUser();
+        if (!me || String(p.d.user_id) !== String(me.id)) return;
+        const expected = duVoiceMod.packet && duVoiceMod.packet.d;
+        if (!expected || String(p.d.channel_id) !== String(expected.channel_id)) return;
+        duVoiceMod.remote = {
+          mute: p.d.self_mute === true,
+          voice: p.d.self_deaf === true,
+          at: Date.now()
+        };
+      } catch (_) {}
+    }
+
     const duVoiceRawSend = window.WebSocket && window.WebSocket.prototype.send;
     function duVoiceCapture() {
       const proto = window.WebSocket && window.WebSocket.prototype;
@@ -1424,15 +1447,18 @@ if (window.__DiscordUtilsLoaded) {  } else {
           if (duVoiceMod.socket === this) {
             duVoiceMod.socket = null;
             duVoiceMod.packet = null;
+            duVoiceMod.remote = null;
           }
           return duVoiceRawSend.call(this, data);
         }
         if (duVoiceMod.socket !== this) {
           duVoiceMod.socket = this;
+          this.addEventListener('message', duVoiceRemoteMessage);
           this.addEventListener('close', () => {
             if (duVoiceMod.socket === this) {
               duVoiceMod.socket = null;
               duVoiceMod.packet = null;
+              duVoiceMod.remote = null;
             }
           }, { once: true });
         }
@@ -1441,6 +1467,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         duVoiceMod.kind = parsed.kind;
         if (!duVoiceMod.mute && !duVoiceMod.voice) return duVoiceRawSend.call(this, data);
         duVoiceMod.forwarded += 1;
+        duVoiceMod.outboundAt = Date.now();
         return duVoiceRawSend.call(this, duVoiceEncode(duVoiceOutgoing(packet), parsed.kind));
       };
       hooked.__duGlobalVoiceHook = true;
@@ -1458,11 +1485,60 @@ if (window.__DiscordUtilsLoaded) {  } else {
         const next = duVoiceOutgoing(duVoiceMod.packet);
         duVoiceRawSend.call(ws, duVoiceEncode(next, duVoiceMod.kind));
         duVoiceMod.forwarded += 1;
+        duVoiceMod.outboundAt = Date.now();
         return true;
       } catch (error) {
         console.warn('[DiscordUtils Mod] Erro ao sincronizar:', error);
         return false;
       }
+    }
+
+
+    // Somente decoracao de icones locais. Nao dispara cliques em mute/deafen.
+    function duVoiceButtonKind(button) {
+      if (!button || typeof button.getAttribute !== 'function') return null;
+      const labels = ['aria-label', 'title', 'data-tooltip-content', 'data-testid']
+        .map(name => button.getAttribute(name) || '').join(' ')
+        .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (/\b(undeafen|deafen|ensurdecer|desensurdecer|headphones|headset|fone de ouvido|desativar audio|ativar audio|desativar som|ativar som|disable audio|enable audio)\b/i.test(labels)) return 'voice';
+      if (/\b(unmute|mute|microfone|microphone|mutar|desmutar|silenciar microfone|ativar microfone)\b/i.test(labels)) return 'mute';
+      return null;
+    }
+
+    function duVoicePaintControls() {
+      if (!document || !document.querySelectorAll) return;
+      let muteFound = false, voiceFound = false;
+      const parents = document.querySelectorAll(
+        '[class*="panels_"], [class*="voiceControls_"], [class*="callControls_"], [class*="bottomControls_"]'
+      );
+      for (const parent of parents) {
+        if (!parent.querySelectorAll) continue;
+        for (const button of parent.querySelectorAll('button[aria-label],button[title],button[data-testid]')) {
+          const kind = duVoiceButtonKind(button);
+          if (!kind || !button.classList) continue;
+          if (kind === 'mute') muteFound = true;
+          if (kind === 'voice') voiceFound = true;
+          button.classList.toggle('du-fake-voice-active', kind === 'voice' && duVoiceMod.voice);
+          button.classList.toggle('du-fake-mute-active', kind === 'mute' && duVoiceMod.mute);
+        }
+      }
+      duVoiceMod.voiceUi.muteFound = muteFound;
+      duVoiceMod.voiceUi.voiceFound = voiceFound;
+    }
+
+    function duVoiceStartControls() {
+      duVoiceStyle();
+      duVoicePaintControls();
+      if (!document.body || typeof MutationObserver === 'undefined') return;
+      let queued = false;
+      const observer = new MutationObserver(() => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => { queued = false; duVoicePaintControls(); });
+      });
+      observer.observe(document.body, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'title']
+      });
     }
 
     function duVoiceSet(key, enabled) {
@@ -1473,6 +1549,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         duVoiceMod.voice = !!enabled;
         setNative('modFakeVoice', duVoiceMod.voice);
       }
+      duVoicePaintControls();
       const sent = duVoiceSync();
       toast(sent ? 'Estado enviado. Confirme o icone usando outra conta.' :
         'Preferencia salva. Entre novamente em uma chamada para aplicar.',
@@ -1495,7 +1572,10 @@ if (window.__DiscordUtilsLoaded) {  } else {
         '#du-panel .du-mod-bubble{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#5865f2;font-weight:700}',
         '#du-panel .du-mod-icons{margin-left:auto;display:flex;align-items:center;gap:8px;color:#8c919d}',
         '#du-panel .du-mod-red{color:#f26d72}',
-        '#du-panel .du-mod-state{margin:11px 0;color:var(--mut);font-size:11px;line-height:1.5}'
+        '#du-panel .du-mod-state{margin:11px 0;color:var(--mut);font-size:11px;line-height:1.5}',
+        'button.du-fake-mute-active,button.du-fake-voice-active{position:relative!important;background:rgba(237,66,69,.13)!important;border-radius:10px!important}',
+        'button.du-fake-mute-active svg,button.du-fake-voice-active svg{color:#f26d72!important}',
+        'button.du-fake-mute-active::after,button.du-fake-voice-active::after{content:"";position:absolute;pointer-events:none;z-index:5;top:50%;left:28%;width:45%;height:2px;background:#f26d72;border-radius:5px;transform:rotate(45deg);opacity:.95}'
       ].join('');
       document.head.appendChild(style);
     }
@@ -1521,9 +1601,14 @@ if (window.__DiscordUtilsLoaded) {  } else {
         preview.innerHTML = '<div class="du-mod-preview-line"><span class="du-mod-bubble">D</span><strong>Minha conta - Previa</strong><span class="du-mod-icons"><span class="' +
           (m ? 'du-mod-red' : '') + '">' + duVoiceGlyph('mic', m) + '</span><span class="' +
           (v ? 'du-mod-red' : '') + '">' + duVoiceGlyph('headset', v) + '</span></span></div>';
-        status.textContent = online
-          ? 'Gateway identificado. Quadros enviados: ' + duVoiceMod.forwarded + '. O Discord pode ignorar a alteracao.'
-          : 'Aguardando quadro de voz. Entre ou reconecte ao canal.';
+        const remote = duVoiceMod.remote;
+        const wanted = duVoiceOutgoing({d: duVoiceMod.packet ? duVoiceMod.packet.d : {self_mute:false,self_deaf:false}}).d;
+        const confirmed = online && remote && remote.mute === wanted.self_mute && remote.voice === wanted.self_deaf;
+        status.textContent = !online
+          ? 'Aguardando Gateway. Entre ou reconecte na chamada; os icones vermelhos sao apenas visuais ate o envio.'
+          : confirmed
+            ? 'Discord confirmou o estado de voz da sua conta. Confira audio e aparencia com outra conta.'
+            : 'Gateway capturado; quadros enviados: ' + duVoiceMod.forwarded + '. Estado remoto ainda nao confirmado.';
       };
 
       function card(key, title, desc, type) {
@@ -1618,7 +1703,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
     const scheduleNav = () => { if (navTimer) return; navTimer = setTimeout(() => { navTimer = null; if (!document.getElementById(NAV_ID)) insertNavItem(); }, 300); };
 
     function start() {
-      getRequire(); buildPanel(); insertNavItem();
+      getRequire(); buildPanel(); duVoiceStartControls(); insertNavItem();
       new MutationObserver(scheduleNav).observe(document.body, { childList: true, subtree: true });
       window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel.classList.contains('open')) togglePanel(false); });
       window.addEventListener('resize', clampPanel);
