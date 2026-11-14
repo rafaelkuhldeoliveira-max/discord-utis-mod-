@@ -312,7 +312,7 @@ function Remove-CorePatch {
 # Adicional DiscordUtils+: integrado ao mesmo painel do instalador original.
 function Install-DiscordUtilsPlus {
     $rawUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-plus/addon.js'
-    $expected = 'CF8B6BE85959973100BEF62DCC70E752F35BDB45BB05674B13F2389B27F0B7C1'
+    $expected = 'E57BB22FBE51FD90A1EC3537EEAA9E9E9E76F7934612CE6EC790BFF0DCCF991E'
     $addon = Join-Path $env:TEMP ('du-plus-' + [Guid]::NewGuid().ToString('N') + '.js')
     try {
         Write-Log 'Baixando complemento Fake Mute e Fake Voice...'
