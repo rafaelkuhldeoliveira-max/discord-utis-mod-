@@ -309,6 +309,8 @@
           #${LOCAL_ID} svg, .${SELF_CLASS} svg{width:14px;height:14px;flex-shrink:0}
           #${LOCAL_ID}[data-pending="true"], .${SELF_CLASS}[data-pending="true"]{border-style:dashed;color:#edca8e;border-color:rgba(240,182,116,.6)}
           .${SELF_CLASS}{padding:2px 5px;font-size:10px;margin-left:5px}
+          #${LOCAL_ID} .du-plus-cross, .${SELF_CLASS} .du-plus-cross{position:relative;display:inline-flex;align-items:center;justify-content:center;margin:0 2px}
+          #${LOCAL_ID} .du-plus-cross::after, .${SELF_CLASS} .du-plus-cross::after{content:'';position:absolute;top:50%;left:-1px;width:17px;height:2px;border-radius:1px;background:currentColor;transform:rotate(-45deg);pointer-events:none}
         `;
         document.head.appendChild(style);
       }
@@ -408,7 +410,8 @@
         if (node.dataset?.state === signature) return;
         node.replaceChildren();
         const glyph=document.createElement('span');
-        glyph.innerHTML=mode.voice?voiceIcon:micIcon;
+        const crossed=(svg)=>'<span class="du-plus-cross">'+svg+'</span>';
+        glyph.innerHTML=mode.voice ? crossed(micIcon)+crossed(voiceIcon) : crossed(micIcon);
         glyph.setAttribute('aria-hidden','true');
         const label=document.createElement('span');
         label.textContent=(mode.voice?'Fake Voice':'Fake Mute')+(detailed?(mode.pending?' (aguardando)':' ativo'):'');
