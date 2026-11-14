@@ -1,52 +1,45 @@
-# DiscordUtils+ — Instalador grafico para Windows
+# DiscordUtils+ — Fake Mute e Fake Voice
 
-Baseado no projeto [DarkModeBR/DiscordUtils](https://github.com/DarkModeBR/DiscordUtils). O instalador abre **o mesmo painel grafico escuro da versao original**, com os botoes **Instalar / Atualizar**, **Reparar** e **Desinstalar**; os botoes usam o complemento deste repositorio.
+Versao atualizada: **somente controles de voz**. A antiga aba `Apagadas 24h`, o registro de mensagens e as respectivas opcoes foram removidos.
 
-## Instalacao pelo PowerShell (com menu)
+O instalador tem o visual original do [DarkModeBR/DiscordUtils](https://github.com/DarkModeBR/DiscordUtils) (licenca MIT): janela escura com **Instalar / Atualizar**, **Reparar** e **Desinstalar**.
 
-Abra o PowerShell no Windows e execute:
+## Instale diretamente pelo PowerShell
 
 ```powershell
 irm https://tinyurl.com/Discord-Mod-v1 | iex
 ```
 
-O atalho TinyURL foi criado pelo responsavel pelo repositorio. Se o atalho nao redirecionar ao arquivo atualizado, use o link direto:
+Se o link encurtado nao redirecionar ao arquivo novo, use diretamente:
 
 ```powershell
 irm https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/instalar-global.ps1 | iex
 ```
 
-Aguarde o carregamento e use **Instalar / Atualizar** na janela **Discord Utils+**. O comando inicia o menu em uma instancia do PowerShell separada, sem exigir ZIP.
+No menu grafico, clique em **Instalar / Atualizar**. Para substituir uma versao anterior, **Instalar / Atualizar** copia o complemento novo e reinicia o cliente. **Reparar** reaplica os arquivos; se usar Reparar com o Discord aberto, pressione Ctrl+R no Discord apos concluir.
 
-## Funcoes inclusas
+## Controles
 
-- **Fake Mute (botao pequeno):** transmite `self_mute: true` no estado da chamada sem cortar o microfone fisico.
-- **Fake Voice (botao maior):** transmite `self_mute: true` e `self_deaf: true` sem desligar automaticamente audio local.
-- **Apagadas 24h:** opcional, desligado inicialmente; registra localmente mensagens capturadas enquanto o Discord esta aberto para exibi-las se forem apagadas, com exclusao automatica do historico apos 24 horas. Nao recupera exclusoes anteriores a ativacao.
-- **Opcoes dentro do Discord Utils** para ligar/desligar registro e mostrar/ocultar os dois botoes.
+- **Fake Mute (pequeno):** envia `self_mute=true` no evento `VOICE_STATE_UPDATE` do Gateway; nao chama `MediaEngine.setMute`, portanto nao deve cortar o microfone fisico.
+- **Fake Voice (maior):** envia `self_mute=true` e `self_deaf=true` no Gateway; nao executa o ensurdecimento local.
+- O painel inclui a aba **Voz**, com duas secoes: estado da chamada e botoes, mais as opcoes para mostrar/ocultar cada controle.
+- Ambos os modos podem ser ativados ao mesmo tempo. O Fake Voice prevalece no estado informado (mute + deaf). Ao desligar os modos, o plugin volta a enviar o estado real do microfone e dos fones.
+- Quando fora da chamada, os controles ficam **preparados**, e tentam aplicar automaticamente quando o Discord conecta.
+- O modulo se reinscreve nos eventos de conexao e religa o hook no socket apos uma reconexao.
 
-Os controles tentam reenviar o estado no Gateway real (`OP 4`), em vez de apenas alterar um icone. A compatibilidade depende do cliente Discord instalado. **Ainda nao houve validacao ao vivo no Discord para Windows; houve testes automatizados com Gateway/Flux simulados**.
+## Validacao e limite
 
-## Como funciona o instalador
+O novo complemento passou em **testes locais simulados** com socket de Gateway, eventos Flux e saida de controle. Ainda nao foi testado em uma instalacao real do Discord para Windows nesta sessao. O envio do estado ao Gateway nao prova, por si, que os outros participantes estao vendo esse estado; isso deve ser confirmado em uma chamada real.
 
-- `instalar-global.ps1`, `instalar.ps1` e `install-plugin.ps1`: entradas para abrir o menu grafico.
-- `discordutils-plus/instalador-gui.ps1`: o instalador original personalizado, mantendo layout e operacoes de instalacao/reparo/remocao.
-- `discordutils-plus/addon.js`: complemento dos botoes e das mensagens apagadas.
-- `discordutils-plus/instalar.ps1`: entrada alternativa para o menu.
-- `discordutils-plus/LICENSE_ORIGINAL.txt`: termos MIT da base original.
+## Arquivos
 
-O instalador usa um commit fixo do DiscordUtils original e verifica SHA-256 do complemento antes de aplicar alteracoes ao `renderer.js`. Faz backup do renderer antes de adicionar as abas **Voz e privacidade** e **Apagadas 24h**. Desativa a atualizacao automatica do arquivo modificado para que ele nao seja substituido imediatamente.
+- `instalar-global.ps1`, `instalar.ps1`, `install-plugin.ps1`: entradas que abrem o mesmo menu grafico
+- `discordutils-plus/instalador-gui.ps1`: instalador grafico do original adaptado com integracao do complemento
+- `discordutils-plus/addon.js`: controles Fake Mute e Fake Voice
+- `discordutils-plus/LICENSE_ORIGINAL.txt`: licenca MIT do projeto base
 
-## Reparar ou remover
+O instalador verifica o SHA-256 do complemento, faz backup do renderer original e desativa autoUpdate do renderer para preservar a modificacao.
 
-Abra novamente o menu grafico com o mesmo comando PowerShell e escolha **Reparar** ou **Desinstalar**. Para usar diretamente sem o menu:
+## Desinstalar
 
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/instalar-global.ps1))) -Reparar
-```
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/instalar-global.ps1))) -Desinstalar
-```
-
-Requer Windows, acesso ao GitHub e Discord para desktop. Alteracoes nas implementacoes internas do Discord podem exigir reparos ou atualizacoes do complemento.
+Execute o mesmo comando e clique em **Desinstalar** para restaurar o cliente. Ao iniciar a nova versao, dados antigos de mensagens apagadas salvos no armazenamento local pelo complemento anterior sao apagados.
