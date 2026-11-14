@@ -1,11 +1,15 @@
     // DiscordUtils+ — controles de voz. Base DiscordUtils (licenca MIT).
+    // Integracao adaptada do FakeMuteX v1.2.7 por MrCross:
+    // https://github.com/mrcrossog/FakeMuteX (README declara licenca MIT).
+    // WebSocket.prototype.send e atalho configuravel adaptados; BdApi nao e usado.
     // Inserido na closure renderer.js: acessa os stores carregados do Discord.
     const DU_PLUS = (() => {
       'use strict';
       const TAG = '[DiscordUtils+/Voz]';
       const VOICE_ID = 'du-plus-voice-buttons';
       const STYLE_ID = 'du-plus-voice-style';
-      const defaultOptions = { showMute: true, showVoice: true };
+      const DEFAULT_KEYBIND = Object.freeze({key:'F6', code:'F6', ctrl:false, shift:false, alt:false});
+      const defaultOptions = { showMute: true, showVoice: true, enableMuteKeybind:true, muteKeybind:DEFAULT_KEYBIND };
       const currentId = () => { try { return String(currentUser()?.id || 'anon'); } catch (_) { return 'anon'; } };
       const optKey = () => `DiscordUtils.plus.v2.${currentId()}.voiceOptions`;
       const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
@@ -28,6 +32,8 @@
       let originalSend = null;
       let wrappedSend = null;
       let lastVoicePayload = null;
+      let nativeWSOriginal = null, nativeWSWrapped = null;
+      let recentRawSocket = null, recentRawVoice = null, recentRawPacket = null, recentRawAt = 0;
       let dispatcher = null;
       let voiceSubscriptions = [];
       let running = false;
@@ -78,6 +84,101 @@
           next.self_mute = true;
         }
         return next;
+      }
+
+      // FakeMuteX intercepta WebSocket.prototype.send. Aqui fazemos o mesmo
+      // como fallback, mas aceitando JSON string, ArrayBuffer e TypedArray.
+      // Frames comprimidos/binarios desconhecidos passam intactos.
+      function decodeGatewayFrame(frame) {
+        let text, format = 'string';
+        if (typeof frame === 'string') { text = frame; }
+        else if (typeof ArrayBuffer !== 'undefined' && frame instanceof ArrayBuffer) {
+          if (frame.byteLength > 32768) return null;
+          text = new TextDecoder().decode(frame); format = 'buffer';
+        } else if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(frame)) {
+          if (frame.byteLength > 32768) return null;
+          text = new TextDecoder().decode(new Uint8Array(frame.buffer, frame.byteOffset, frame.byteLength));
+          format = 'view';
+        } else return null;
+        if (!text || text.length > 32768 || !text.includes('"op"')) return null;
+        let packet;
+        try { packet = JSON.parse(text); } catch (_) { return null; }
+        if (!packet || packet.op !== 4 || !packet.d || typeof packet.d !== 'object'
+            || !Object.prototype.hasOwnProperty.call(packet.d, 'self_mute')) return null;
+        return { packet, format };
+      }
+      function encodeGatewayFrame(packet, format) {
+        const text = JSON.stringify(packet);
+        if (format === 'string') return text;
+        const bytes = new TextEncoder().encode(text);
+        return format === 'buffer' ? bytes.buffer : bytes;
+      }
+      function hookRawWebSocket() {
+        if (typeof WebSocket !== 'function' || typeof WebSocket.prototype?.send !== 'function') return false;
+        if (WebSocket.prototype.send === nativeWSWrapped) return true;
+        const base = WebSocket.prototype.send;
+        const wrapped = function (frame) {
+          let outgoing = frame;
+          try {
+            const decoded = decodeGatewayFrame(frame);
+            if (decoded) {
+              recentRawSocket = this;
+              recentRawVoice = { ...decoded.packet.d };
+              recentRawPacket = decoded.packet;
+              recentRawAt = Date.now();
+              if (fakeMute || fakeVoice) {
+                const altered = { ...decoded.packet, d: effective(decoded.packet.d) };
+                outgoing = encodeGatewayFrame(altered, decoded.format);
+              }
+            }
+          } catch (error) { console.warn(TAG, 'interceptacao WebSocket:', error); }
+          return base.call(this, outgoing);
+        };
+        try {
+          Object.defineProperty(wrapped, '__duPlusRawVoice', { value:true });
+          WebSocket.prototype.send = wrapped;
+          if (WebSocket.prototype.send !== wrapped) return false;
+          nativeWSOriginal = base; nativeWSWrapped = wrapped;
+          return true;
+        } catch (error) { console.warn(TAG, 'hook WebSocket indisponivel:', error); return false; }
+      }
+      function rawVoiceResend() {
+        if (!recentRawSocket || !recentRawVoice || !recentRawPacket || !nativeWSOriginal) return false;
+        if (recentRawSocket.readyState !== 1 || !recentRawVoice.channel_id) return false;
+        const selected = getVoiceChannel();
+        if (selected && String(selected) !== String(recentRawVoice.channel_id)) return false;
+        if (!selected && Date.now() - recentRawAt > 45000) return false;
+        const media = mediaStore();
+        const real = media ? realMedia() : {mute:!!recentRawVoice.self_mute, deaf:!!recentRawVoice.self_deaf};
+        const fresh = { ...recentRawVoice, self_mute:real.mute, self_deaf:real.deaf };
+        const packet = { ...recentRawPacket, op:4, d:effective(fresh) };
+        try {
+          nativeWSOriginal.call(recentRawSocket, JSON.stringify(packet));
+          syncState = 'sent';
+          statusText = 'Estado de voz enviado pelo WebSocket (FakeMuteX)';
+          lastAppliedAt = Date.now();
+          return true;
+        } catch (error) { console.warn(TAG, 'reenvio WebSocket:', error); return false; }
+      }
+      function normalizeKeybind() {
+        const k = options.muteKeybind;
+        if (!k || typeof k !== 'object' || typeof k.code !== 'string') return DEFAULT_KEYBIND;
+        return k;
+      }
+      function printKeybind(keybind=normalizeKeybind()) {
+        return [keybind.ctrl&&'Ctrl', keybind.shift&&'Shift', keybind.alt&&'Alt', keybind.key || keybind.code]
+          .filter(Boolean).join('+');
+      }
+      function handleFakeMuteKeybind(event) {
+        if (!options.enableMuteKeybind || event.repeat || event.isComposing) return;
+        const target = event.target;
+        if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+        const k = normalizeKeybind();
+        if (event.code !== k.code || event.ctrlKey !== !!k.ctrl || event.shiftKey !== !!k.shift
+            || event.altKey !== !!k.alt) return;
+        event.preventDefault();
+        event.stopPropagation();
+        toggle('mute');
       }
       function hookSocket() {
         const socket = getSocket();
@@ -140,34 +241,25 @@
       }
       function syncToDiscord() {
         const channelId = getVoiceChannel();
-        if (!channelId) {
-          syncState = 'pending';
-          statusText = 'Fora da chamada: o modo sera aplicado ao entrar';
-          return 'pending';
+        if (channelId && hookSocket() && activeSocket?.isConnected?.() !== false) {
+          const payload = buildPayload();
+          if (payload) {
+            try {
+              activeSocket.send(4, payload);
+              syncState = 'sent';
+              statusText = 'Estado de voz enviado pelo Gateway';
+              lastAppliedAt = Date.now();
+              return 'sent';
+            } catch (e) { console.warn(TAG, 'falha no envio direto:', e); }
+          }
         }
-        if (!hookSocket() || activeSocket?.isConnected?.() === false) {
-          syncState = 'pending';
-          statusText = 'Reconectando ao Gateway. O modo continua preparado';
-          return 'pending';
-        }
-        const payload = buildPayload();
-        if (!payload) {
-          syncState = 'pending';
-          statusText = 'Aguardando dados da chamada';
-          return 'pending';
-        }
-        try {
-          activeSocket.send(4, payload);
-          syncState = 'sent';
-          statusText = 'Estado de voz enviado ao Discord';
-          lastAppliedAt = Date.now();
-          return 'sent';
-        } catch (e) {
-          syncState = 'error';
-          statusText = `Falha no envio: ${String(e?.message || e)}`;
-          console.warn(TAG, statusText);
-          return 'error';
-        }
+        // Em algumas builds, getSocket nao fica exposto. FakeMuteX usa
+        // WebSocket.send; usamos a ultima sessao observada para reenviar OP4.
+        if (rawVoiceResend()) return 'sent';
+        syncState = 'pending';
+        statusText = channelId ? 'Gateway indisponivel: aguardando proximo pacote de voz'
+          : 'Fora da chamada: o modo sera aplicado ao entrar';
+        return 'pending';
       }
       function toggle(kind) {
         if (kind === 'mute') fakeMute = !fakeMute;
@@ -333,6 +425,25 @@
         heading(body,'Exibição dos botões','Escolha quais controles extras aparecem na barra de voz.');
         panelToggle(body,'Mostrar Fake Mute','Exibir o botão pequeno de microfone.',options.showMute,()=>{options.showMute=!options.showMute;save();updateButtons();});
         panelToggle(body,'Mostrar Fake Voice','Exibir o botão maior de fone.',options.showVoice,()=>{options.showVoice=!options.showVoice;save();updateButtons();});
+
+        heading(body,'Atalho do Fake Mute','FakeMuteX: por padrao F6. Clique no campo e pressione uma combinacao para redefinir (aceita NumPad).');
+        panelToggle(body,'Habilitar atalho de teclado','Liga e desliga o Fake Mute sem abrir o painel.',options.enableMuteKeybind,()=>{
+          options.enableMuteKeybind = !options.enableMuteKeybind;save();
+        });
+        const bind = document.createElement('input');
+        bind.type = 'text'; bind.readOnly = true;
+        bind.className = 'du-input';
+        bind.setAttribute('aria-label','Atalho do Fake Mute');
+        bind.value = printKeybind();
+        bind.title = 'Clique e pressione a combinacao desejada';
+        bind.addEventListener('keydown',event=>{
+          event.preventDefault();event.stopPropagation();
+          if (['Control','Shift','Alt','Meta','Escape'].includes(event.key)) return;
+          options.muteKeybind = {key:event.key, code:event.code, ctrl:!!event.ctrlKey,
+            shift:!!event.shiftKey, alt:!!event.altKey};
+          save(); bind.value = printKeybind();
+        });
+        body.appendChild(bind);
         const hint = document.createElement('p');hint.className='du-plus-hint';
         hint.textContent='Quando estiver fora de uma chamada, os modos ficam preparados. Ao conectar, o estado será enviado. Se estiver usando mute/deafen real, essas opções locais continuam valendo.';
         body.appendChild(hint);
@@ -342,20 +453,23 @@
         running = true;
         cleanOldLogger();
         injectStyles();
+        hookRawWebSocket();
         hookSocket();
         subscribeVoiceEvents();
         mount();
+        document.addEventListener('keydown',handleFakeMuteKeybind,true);
         new MutationObserver(scheduleMount).observe(document.body, { childList:true, subtree:true });
         // Reconexoes podem ocorrer sem evento Flux exposto em algumas builds.
         setInterval(() => {
           const old = activeSocket;
           const oldHook = !!activeSocket && activeSocket.send === wrappedSend;
+          hookRawWebSocket();
           const hooked = hookSocket();
           if (!voiceSubscriptions.length) subscribeVoiceEvents();
           if (hooked && (old !== activeSocket || !oldHook) && (fakeMute || fakeVoice)) syncToDiscord();
           cleanOldLogger();
         }, 2000);
-        console.info(TAG,'ativo: Fake Mute pequeno + Fake Voice maior. Sem registro de mensagens.');
+        console.info(TAG,'FakeMuteX adaptado: WebSocket fallback + F6; Gateway direto e botoes continuam ativos.');
       }
       return { start, renderSettings, status: () => ({fakeMute, fakeVoice, syncState, statusText, lastAppliedAt, options}) };
     })();
