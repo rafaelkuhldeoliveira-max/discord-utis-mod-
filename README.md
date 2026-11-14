@@ -28,12 +28,14 @@ No menu grafico, clique em **Instalar / Atualizar**. Para substituir uma versao 
 - Ambos os modos podem ser ativados ao mesmo tempo. O Fake Voice prevalece no estado informado (mute + deaf). Ao desligar os modos, o plugin volta a enviar o estado real do microfone e dos fones.
 - Quando fora da chamada, os controles ficam **preparados**, e tentam aplicar automaticamente quando o Discord conecta.
 - O módulo se reinscreve nos eventos de conexão e religa o hook no socket após reconexões.
-- **Atalho Fake Mute:** F6 por padrão; alterável na aba **Voz**, clicando no campo do atalho e pressionando a combinação desejada. Aceita Ctrl, Shift, Alt e NumPad.
+- **Atalho Fake Mute:** F6 por padrão; configurável na aba **Voz**, incluindo combinações Ctrl, Shift, Alt e NumPad.
+- **Atalho Fake Voice:** F7 por padrão; também configurável. Os dois atalhos funcionam com os botões extras ocultos.
+- **Visualização local:** a opção **Mostrar meu estado falso** coloca o indicador na barra de voz e, quando localizado, junto ao seu nome na lista de participantes. Fake Mute mostra microfone riscado; Fake Voice mostra microfone e fones riscados. Não altera os controles reais de mute/deafen.
 - **Compatibilidade:** o interceptor observa somente pacotes JSON de voz (opcode 4); formatos binários desconhecidos ou compactados não são alterados.
 
 ## Validacao e limite
 
-O complemento passou nos testes simulados de Gateway direto, WebSocket (JSON e ArrayBuffer), desativação e atalho F6. Ainda não foi testado em uma instalação real do Discord para Windows nesta sessão. O envio do estado ao Gateway não prova que outras pessoas estejam vendo esse estado; confirme em uma chamada real.
+O complemento passou nos testes simulados de Gateway direto, WebSocket (JSON e ArrayBuffer), desativação e atalhos F6/F7. A visualização local depende da estrutura de interface da versão instalada. Ainda não foi testado em uma instalação real do Discord para Windows nesta sessão. O envio do estado ao Gateway não prova que outras pessoas estejam vendo esse estado; confirme em uma chamada real.
 
 ## Arquivos
 
