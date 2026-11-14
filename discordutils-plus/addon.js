@@ -8,8 +8,12 @@
       const TAG = '[DiscordUtils+/Voz]';
       const VOICE_ID = 'du-plus-voice-buttons';
       const STYLE_ID = 'du-plus-voice-style';
+      const LOCAL_ID = 'du-plus-local-status';
+      const SELF_CLASS = 'du-plus-self-voice-status';
       const DEFAULT_KEYBIND = Object.freeze({key:'F6', code:'F6', ctrl:false, shift:false, alt:false});
-      const defaultOptions = { showMute: true, showVoice: true, enableMuteKeybind:true, muteKeybind:DEFAULT_KEYBIND };
+      const DEFAULT_VOICE_KEYBIND = Object.freeze({key:'F7', code:'F7', ctrl:false, shift:false, alt:false});
+      const defaultOptions = { showMute:true, showVoice:true, showLocalStatus:true, enableMuteKeybind:true, muteKeybind:DEFAULT_KEYBIND,
+        enableVoiceKeybind:true, voiceKeybind:DEFAULT_VOICE_KEYBIND };
       const currentId = () => { try { return String(currentUser()?.id || 'anon'); } catch (_) { return 'anon'; } };
       const optKey = () => `DiscordUtils.plus.v2.${currentId()}.voiceOptions`;
       const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
@@ -160,25 +164,26 @@
           return true;
         } catch (error) { console.warn(TAG, 'reenvio WebSocket:', error); return false; }
       }
-      function normalizeKeybind() {
-        const k = options.muteKeybind;
-        if (!k || typeof k !== 'object' || typeof k.code !== 'string') return DEFAULT_KEYBIND;
-        return k;
+      function normalizeKeybind(kind='mute') {
+        const voice = kind === 'voice';
+        const fallback = voice ? DEFAULT_VOICE_KEYBIND : DEFAULT_KEYBIND;
+        const k = voice ? options.voiceKeybind : options.muteKeybind;
+        return k && typeof k === 'object' && typeof k.code === 'string' ? k : fallback;
       }
-      function printKeybind(keybind=normalizeKeybind()) {
-        return [keybind.ctrl&&'Ctrl', keybind.shift&&'Shift', keybind.alt&&'Alt', keybind.key || keybind.code]
-          .filter(Boolean).join('+');
+      function printKeybind(kind='mute') {
+        const k=normalizeKeybind(kind);
+        return [k.ctrl&&'Ctrl',k.shift&&'Shift',k.alt&&'Alt',k.key||k.code].filter(Boolean).join('+');
       }
-      function handleFakeMuteKeybind(event) {
-        if (!options.enableMuteKeybind || event.repeat || event.isComposing) return;
-        const target = event.target;
-        if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-        const k = normalizeKeybind();
-        if (event.code !== k.code || event.ctrlKey !== !!k.ctrl || event.shiftKey !== !!k.shift
-            || event.altKey !== !!k.alt) return;
-        event.preventDefault();
-        event.stopPropagation();
-        toggle('mute');
+      function handleVoiceShortcuts(event) {
+        if (event.repeat || event.isComposing || event.metaKey ||
+            event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+        const match = (k)=> event.code === k.code && event.ctrlKey === !!k.ctrl &&
+          event.shiftKey === !!k.shift && event.altKey === !!k.alt;
+        const mute = options.enableMuteKeybind && match(normalizeKeybind('mute'));
+        const voice = options.enableVoiceKeybind && match(normalizeKeybind('voice'));
+        if (!mute && !voice) return;
+        event.preventDefault();event.stopPropagation();
+        toggle(mute?'mute':'voice');
       }
       function hookSocket() {
         const socket = getSocket();
@@ -268,6 +273,7 @@
         // Envia imediatamente OP4 quando ha chamada; senao aplica na proxima entrada.
         const result = syncToDiscord();
         updateButtons();
+        syncLocalStatus();
         return result;
       }
       const micIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
@@ -299,6 +305,10 @@
           #du-panel .du-plus-card button{min-width:90px;background:var(--bg3);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 9px;cursor:pointer;font-size:11px}
           #du-panel .du-plus-card button.active{background:rgba(237,66,69,.17);border-color:rgba(237,66,69,.6);color:#ff888d}
           #du-panel .du-plus-card button:focus-visible{outline:2px solid #99a3ff}
+          #${LOCAL_ID}, .${SELF_CLASS}{display:inline-flex;align-items:center;gap:5px;padding:4px 7px;margin:3px 5px;border:1px solid rgba(237,66,69,.45);border-radius:8px;background:rgba(237,66,69,.13);color:#ff9b9e;font:600 11px/1.3 var(--font-primary,system-ui);width:max-content;max-width:100%;pointer-events:none}
+          #${LOCAL_ID} svg, .${SELF_CLASS} svg{width:14px;height:14px;flex-shrink:0}
+          #${LOCAL_ID}[data-pending="true"], .${SELF_CLASS}[data-pending="true"]{border-style:dashed;color:#edca8e;border-color:rgba(240,182,116,.6)}
+          .${SELF_CLASS}{padding:2px 5px;font-size:10px;margin-left:5px}
         `;
         document.head.appendChild(style);
       }
@@ -369,6 +379,66 @@
         }
         if (wrapper.parentElement !== target) target.appendChild(wrapper);
         updateButtons();
+        syncLocalStatus();
+      }
+
+      // Indicadores no proprio Discord, independentes da visibilidade dos botoes.
+      // O estado real de microfone/fones nao e alterado por estes elementos.
+      function localMode() {
+        if (!options.showLocalStatus || (!fakeMute && !fakeVoice)) return null;
+        return {voice:fakeVoice,pending:syncState !== 'sent'};
+      }
+      function findOwnVoiceRow() {
+        const uid=currentId();
+        if (uid==='anon') return null;
+        for (const node of document.querySelectorAll('[data-list-item-id], [data-voice-user-id], [data-user-id]')) {
+          const value=node.getAttribute?.('data-list-item-id') || '';
+          const exact=node.getAttribute?.('data-voice-user-id') || node.getAttribute?.('data-user-id') || '';
+          const match=(value.includes('voice') && (value.endsWith('-'+uid) || value.endsWith(':'+uid))) ||
+            (exact===uid && !!node.closest?.('[class*="voiceUser"],[class*="voiceUsers"],[class*="voiceChannel"]'));
+          if (!match) continue;
+          const row=node.closest?.('li,[role="listitem"]') || node;
+          if (row.closest?.('#du-panel') || row.closest?.('#'+VOICE_ID)) continue;
+          return row;
+        }
+        return null;
+      }
+      function fillLocalBadge(node,mode,detailed) {
+        const signature=(mode.voice?'voice':'mute')+'-'+(mode.pending?'pending':'sent');
+        if (node.dataset?.state === signature) return;
+        node.replaceChildren();
+        const glyph=document.createElement('span');
+        glyph.innerHTML=mode.voice?voiceIcon:micIcon;
+        glyph.setAttribute('aria-hidden','true');
+        const label=document.createElement('span');
+        label.textContent=(mode.voice?'Fake Voice':'Fake Mute')+(detailed?(mode.pending?' (aguardando)':' ativo'):'');
+        node.append(glyph,label);
+        node.dataset.state=signature;
+        node.dataset.pending=String(mode.pending);
+        node.title=mode.voice?'Exibicao falsa de mutado e surdo; audio local permanece independente':
+          'Exibicao falsa de mutado; microfone local permanece independente';
+      }
+      function syncLocalStatus() {
+        const mode=localMode();
+        const controls=findControls();
+        let banner=document.getElementById(LOCAL_ID);
+        if (mode && controls?.parentElement) {
+          if (!banner) {
+            banner=document.createElement('div');banner.id=LOCAL_ID;
+            banner.setAttribute('role','status');
+          }
+          if (banner.previousElementSibling!==controls) controls.insertAdjacentElement('afterend',banner);
+          fillLocalBadge(banner,mode,true);
+        } else banner?.remove();
+        const row=mode?findOwnVoiceRow():null;
+        for (const old of document.querySelectorAll('.'+SELF_CLASS)) {
+          if (!row || old.parentElement!==row) old.remove();
+        }
+        if (row?.isConnected && mode) {
+          let badge=Array.from(row.children).find(el=>el.classList?.contains(SELF_CLASS));
+          if (!badge) {badge=document.createElement('span');badge.className=SELF_CLASS;row.appendChild(badge);}
+          fillLocalBadge(badge,mode,false);
+        }
       }
       function scheduleMount() {
         if (scheduled) return;
@@ -386,6 +456,7 @@
             hookSocket();
             if (fakeMute || fakeVoice) syncToDiscord();
             updateButtons();
+            syncLocalStatus();
           };
           try { flux.subscribe(name, listener); voiceSubscriptions.push([name,listener]); } catch (_) {}
         }
@@ -425,6 +496,8 @@
         heading(body,'Exibição dos botões','Escolha quais controles extras aparecem na barra de voz.');
         panelToggle(body,'Mostrar Fake Mute','Exibir o botão pequeno de microfone.',options.showMute,()=>{options.showMute=!options.showMute;save();updateButtons();});
         panelToggle(body,'Mostrar Fake Voice','Exibir o botão maior de fone.',options.showVoice,()=>{options.showVoice=!options.showVoice;save();updateButtons();});
+        panelToggle(body,'Mostrar meu estado falso','Exibe indicador na barra e ao lado do seu nome na chamada.',
+          options.showLocalStatus,()=>{options.showLocalStatus=!options.showLocalStatus;save();syncLocalStatus();});
 
         heading(body,'Atalho do Fake Mute','FakeMuteX: por padrao F6. Clique no campo e pressione uma combinacao para redefinir (aceita NumPad).');
         panelToggle(body,'Habilitar atalho de teclado','Liga e desliga o Fake Mute sem abrir o painel.',options.enableMuteKeybind,()=>{
@@ -434,16 +507,31 @@
         bind.type = 'text'; bind.readOnly = true;
         bind.className = 'du-input';
         bind.setAttribute('aria-label','Atalho do Fake Mute');
-        bind.value = printKeybind();
+        bind.value = printKeybind('mute');
         bind.title = 'Clique e pressione a combinacao desejada';
         bind.addEventListener('keydown',event=>{
           event.preventDefault();event.stopPropagation();
           if (['Control','Shift','Alt','Meta','Escape'].includes(event.key)) return;
           options.muteKeybind = {key:event.key, code:event.code, ctrl:!!event.ctrlKey,
             shift:!!event.shiftKey, alt:!!event.altKey};
-          save(); bind.value = printKeybind();
+          save(); bind.value = printKeybind('mute');
         });
         body.appendChild(bind);
+        heading(body,'Atalho do Fake Voice','F7 por padrao. Tambem funciona com o botao extra escondido.');
+        panelToggle(body,'Habilitar atalho Fake Voice','Liga/desliga pelo teclado.',
+          options.enableVoiceKeybind,()=>{options.enableVoiceKeybind=!options.enableVoiceKeybind;save();});
+        const voiceBind=document.createElement('input');
+        voiceBind.type='text';voiceBind.readOnly=true;voiceBind.className='du-input';
+        voiceBind.setAttribute('aria-label','Atalho do Fake Voice');
+        voiceBind.value=printKeybind('voice');
+        voiceBind.addEventListener('keydown',event=>{
+          event.preventDefault();event.stopPropagation();
+          if(['Control','Shift','Alt','Meta','Escape'].includes(event.key))return;
+          options.voiceKeybind={key:event.key,code:event.code,ctrl:!!event.ctrlKey,
+            shift:!!event.shiftKey,alt:!!event.altKey};
+          save();voiceBind.value=printKeybind('voice');
+        });
+        body.appendChild(voiceBind);
         const hint = document.createElement('p');hint.className='du-plus-hint';
         hint.textContent='Quando estiver fora de uma chamada, os modos ficam preparados. Ao conectar, o estado será enviado. Se estiver usando mute/deafen real, essas opções locais continuam valendo.';
         body.appendChild(hint);
@@ -457,7 +545,7 @@
         hookSocket();
         subscribeVoiceEvents();
         mount();
-        document.addEventListener('keydown',handleFakeMuteKeybind,true);
+        document.addEventListener('keydown',handleVoiceShortcuts,true);
         new MutationObserver(scheduleMount).observe(document.body, { childList:true, subtree:true });
         // Reconexoes podem ocorrer sem evento Flux exposto em algumas builds.
         setInterval(() => {
@@ -468,8 +556,9 @@
           if (!voiceSubscriptions.length) subscribeVoiceEvents();
           if (hooked && (old !== activeSocket || !oldHook) && (fakeMute || fakeVoice)) syncToDiscord();
           cleanOldLogger();
+          syncLocalStatus();
         }, 2000);
-        console.info(TAG,'FakeMuteX adaptado: WebSocket fallback + F6; Gateway direto e botoes continuam ativos.');
+        console.info(TAG,'FakeMuteX: F6 fake mute, F7 fake voice, indicadores no proprio Discord.');
       }
       return { start, renderSettings, status: () => ({fakeMute, fakeVoice, syncState, statusText, lastAppliedAt, options}) };
     })();
