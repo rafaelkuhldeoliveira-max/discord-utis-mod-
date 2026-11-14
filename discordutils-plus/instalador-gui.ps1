@@ -312,10 +312,10 @@ function Remove-CorePatch {
 # Adicional DiscordUtils+: integrado ao mesmo painel do instalador original.
 function Install-DiscordUtilsPlus {
     $rawUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-plus/addon.js'
-    $expected = '9716F35CD7C6A82E78BA04CC081AF6B4F7ED2B39D93D44FC742C7B8145A06C81'
+    $expected = '043E08D22597B95DD215534EAF35E590467F8004D10EDC08F01B3FC45CA2A9C9'
     $addon = Join-Path $env:TEMP ('du-plus-' + [Guid]::NewGuid().ToString('N') + '.js')
     try {
-        Write-Log 'Baixando complemento Fake Mute / Fake Voice / Apagadas 24h...'
+        Write-Log 'Baixando complemento Fake Mute e Fake Voice...'
         Invoke-WebRequest -Uri $rawUrl -OutFile $addon -UseBasicParsing
         $actual = (Get-FileHash -LiteralPath $addon -Algorithm SHA256).Hash
         if ($actual -ne $expected) { throw "Addon nao corresponde ao SHA256 publicado. Esperado: $expected, recebido: $actual" }
@@ -337,8 +337,7 @@ function Install-DiscordUtilsPlus {
             "`n    // === DiscordUtilsPlus: end ===`n" + $marker)
         $code = $code.Replace($tabMark,
             "    const tabs = [`n" +
-            "      { name: 'Voz e privacidade', icon: 'shield', render: DU_PLUS.renderSettings },`n" +
-            "      { name: 'Apagadas 24h', icon: 'clock', render: DU_PLUS.renderDeleted },`n")
+            "      { name: 'Voz', icon: 'shield', render: DU_PLUS.renderSettings },`n")
         $code = $code.Replace($startMark, $startMark + ' DU_PLUS.start();')
 
         # O instalador original copia novamente a base em cada reparo.
@@ -354,7 +353,7 @@ function Install-DiscordUtilsPlus {
             throw 'Falha ao gravar o complemento no renderer do Discord.'
         }
         Write-Log 'Fake Mute pequeno e Fake Voice maior integrados.' 'ok'
-        Write-Log 'Registro de apagadas 24h: ativacao opcional no painel.' 'ok'
+        Write-Log 'Painel de voz reorganizado; registro de mensagens removido.' 'ok'
     } finally {
         Remove-Item -LiteralPath $addon -Force -ErrorAction SilentlyContinue
     }
@@ -372,7 +371,7 @@ function Invoke-Install {
     Write-Log "Plugin injetado em $n versao(oes) do Discord" 'ok'
     Start-Discord
     Write-StatusLine
-    Write-Log 'Pronto. Procure "Discord Utils" e as abas de voz/apagadas.' 'ok'
+    Write-Log 'Pronto. Abra Discord Utils > Voz para configurar os botões.' 'ok'
     Write-Log 'Depois de atualizar o Discord, use Reparar se necessario.' 'warn'
 }
 
@@ -750,7 +749,7 @@ function Show-Gui {
     Write-Log 'Reparar - reinstala o plugin e o complemento de voz.'
     Write-Log 'Desinstalar - restaura o Discord e apaga a pasta do plugin.'
     Write-Log ''
-    Write-Log 'Inclui Fake Mute, Fake Voice e apagadas 24h (opcional).'
+    Write-Log 'Inclui Fake Mute e Fake Voice com controles independentes.'
 
     [void]$form.ShowDialog()
 }
