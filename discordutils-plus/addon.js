@@ -1,338 +1,361 @@
-    // DiscordUtils+ custom addon: Fake Mute / Fake Voice / 24h local delete log.
-    // Injected within the original DiscordUtils renderer closure.
+    // DiscordUtils+ — controles de voz. Base DiscordUtils (licenca MIT).
+    // Inserido na closure renderer.js: acessa os stores carregados do Discord.
     const DU_PLUS = (() => {
       'use strict';
-      const DAY = 24 * 60 * 60 * 1000;
-      const MAX_SEEN = 450, MAX_DELETED = 240;
-      const STYLE_ID_PLUS = 'du-plus-style';
+      const TAG = '[DiscordUtils+/Voz]';
       const VOICE_ID = 'du-plus-voice-buttons';
-      const mark = '[DiscordUtils+]';
-      const getUid = () => { try { return String(currentUser()?.id || 'anon'); } catch (_) { return 'anon'; } };
-      const key = (suffix) => `DiscordUtils.plus.v1.${getUid()}.${suffix}`;
-      const safeRead = (suffix, fallback) => { try { const v = JSON.parse(localStorage.getItem(key(suffix))); return v === null ? fallback : v; } catch (_) { return fallback; } };
-      const safeSave = (suffix, value) => { try { localStorage.setItem(key(suffix), JSON.stringify(value)); return true; } catch (e) { console.warn(mark, 'sem armazenamento local:', e); return false; } };
-      const defaultOptions = Object.freeze({ showMute: true, showVoice: true, saveDeleted: false });
-      const options = { ...defaultOptions, ...safeRead('options', {}) };
-      let fakeMute = false, fakeVoice = false;
-      let lastError = '';
-      let sock = null, originalSend = null, lastVoicePayload = null;
-      let dispatcher = null, originalDispatch = null;
-      let mounted = false, scheduled = false, listenersStarted = false;
-      let seen = safeRead('seen', []), deleted = safeRead('deleted', []);
-      if (!Array.isArray(seen)) seen = [];
-      if (!Array.isArray(deleted)) deleted = [];
-      const now = () => Date.now();
-      const keepRecent = (items, max, field) => items.filter(x => x && Number.isFinite(x[field]) && now() - x[field] < DAY).slice(-max);
-      function prune() {
-        const beforeSeen = seen.length, beforeDeleted = deleted.length;
-        seen = keepRecent(seen, MAX_SEEN, 'seenAt');
-        deleted = keepRecent(deleted, MAX_DELETED, 'deletedAt');
-        if (seen.length !== beforeSeen) safeSave('seen', seen);
-        if (deleted.length !== beforeDeleted) safeSave('deleted', deleted);
+      const STYLE_ID = 'du-plus-voice-style';
+      const defaultOptions = { showMute: true, showVoice: true };
+      const currentId = () => { try { return String(currentUser()?.id || 'anon'); } catch (_) { return 'anon'; } };
+      const optKey = () => `DiscordUtils.plus.v2.${currentId()}.voiceOptions`;
+      const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
+      const save = () => { try { localStorage.setItem(optKey(), JSON.stringify(options)); } catch (e) { console.warn(TAG, 'falha ao salvar preferencias', e); } };
+      const options = { ...defaultOptions, ...(read(optKey()) || (() => {
+        const old = read(`DiscordUtils.plus.v1.${currentId()}.options`) || {};
+        return { showMute: old.showMute !== false, showVoice: old.showVoice !== false };
+      })()) };
+      // Nenhum registro de mensagens: elimina arquivos locais legados desta conta.
+      function cleanOldLogger() {
+        for (const id of [currentId(), 'anon']) {
+          for (const suffix of ['seen', 'deleted']) {
+            try { localStorage.removeItem(`DiscordUtils.plus.v1.${id}.${suffix}`); } catch (_) {}
+          }
+        }
       }
-      prune();
-      function persistOptions() { safeSave('options', options); updateButtons(); }
-      function getModule(...methods) { try { return findByMethods(...methods); } catch (_) { return null; } }
-      function moduleWith(...props) { try { return findByProps(...props); } catch (_) { return null; } }
-      function findSocket() {
-        const module = moduleWith('getSocket');
-        try { const candidate = module && module.getSocket(); if (candidate && typeof candidate.send === 'function') return candidate; } catch (_) {}
-        return null;
+      let fakeMute = false;
+      let fakeVoice = false;
+      let activeSocket = null;
+      let originalSend = null;
+      let wrappedSend = null;
+      let lastVoicePayload = null;
+      let dispatcher = null;
+      let voiceSubscriptions = [];
+      let running = false;
+      let scheduled = false;
+      let statusText = 'Aguardando conexao de voz';
+      let syncState = 'idle';
+      let lastAppliedAt = 0;
+      let lastActual = null;
+      const memo = new Map();
+      const findModule = (...methods) => { try { return findByMethods(...methods); } catch (_) { return null; } };
+      const findProps = (...props) => { try { return findByProps(...props); } catch (_) { return null; } };
+      const resolve = (name, fn) => {
+        if (memo.has(name)) return memo.get(name);
+        const mod = fn();
+        if (mod) memo.set(name, mod);
+        return mod;
+      };
+      const socketModule = () => resolve('socket', () => findProps('getSocket'));
+      const selectedStore = () => resolve('selected', () => findModule('getVoiceChannelId'));
+      const channelStore = () => resolve('channels', () => findModule('getChannel'));
+      const mediaStore = () => resolve('media', () => findModule('isMute', 'isDeaf'));
+      const voiceStore = () => resolve('voice', () => findModule('getVoiceStateForUser'));
+      function getSocket() {
+        try {
+          const s = socketModule()?.getSocket?.();
+          return s && typeof s.send === 'function' ? s : null;
+        } catch (e) { console.warn(TAG, 'gateway nao acessivel:', e); return null; }
       }
-      function patchSocket() {
-        const current = findSocket();
-        if (!current) { lastError = 'Gateway do Discord indisponível'; return false; }
-        if (sock === current && current.send?.__duPlusSend) { lastError = ''; return true; }
-        // If another add-on replaced send, rehook the current function instead of assuming success.
-        sock = current;
-        const baseSend = current.send;
-        originalSend = baseSend;
-        const wrapped = function(op, payload, ...rest) {
+      function getVoiceChannel() {
+        try { return selectedStore()?.getVoiceChannelId?.() || null; } catch (_) { return null; }
+      }
+      function realMedia() {
+        try {
+          const media = mediaStore();
+          const mute = !!media?.isMute?.();
+          const deaf = !!media?.isDeaf?.();
+          lastActual = { mute, deaf };
+          return lastActual;
+        } catch (_) { return lastActual || { mute: false, deaf: false }; }
+      }
+      function effective(data) {
+        const next = { ...data };
+        if (fakeVoice) {
+          // Reporta mute e deaf no Gateway; nao usa MediaEngine.setMute/setDeaf.
+          next.self_mute = true;
+          next.self_deaf = true;
+        } else if (fakeMute) {
+          next.self_mute = true;
+        }
+        return next;
+      }
+      function hookSocket() {
+        const socket = getSocket();
+        if (!socket) return false;
+        if (activeSocket === socket && socket.send === wrappedSend) return true;
+        // O Discord recria o socket em reconnects e troca o metodo send.
+        if (activeSocket && wrappedSend && originalSend && activeSocket.send === wrappedSend) {
+          try { activeSocket.send = originalSend; } catch (_) {}
+        }
+        activeSocket = null;
+        const base = socket.send;
+        if (typeof base !== 'function') return false;
+        const wrapper = function (op, payload, ...args) {
+          // Discord Gateway VOICE_STATE_UPDATE (opcode 4).
           if (op === 4 && payload && typeof payload === 'object') {
             lastVoicePayload = { ...payload };
-            let modified = { ...payload };
-            if (fakeVoice) { modified.self_mute = true; modified.self_deaf = true; }
-            else if (fakeMute) modified.self_mute = true;
-            return baseSend.call(this, op, modified, ...rest);
+            const outbound = effective(payload);
+            const result = base.call(this, op, outbound, ...args);
+            if (fakeMute || fakeVoice) {
+              syncState = 'sent';
+              statusText = 'Estado de voz enviado ao Discord';
+              lastAppliedAt = Date.now();
+            }
+            return result;
           }
-          return baseSend.call(this, op, payload, ...rest);
+          return base.call(this, op, payload, ...args);
         };
-        try { Object.defineProperty(wrapped, '__duPlusSend', { value: true }); current.send = wrapped; lastError = ''; return true; }
-        catch (e) { lastError = `Não foi possível conectar ao gateway: ${e.message}`; return false; }
+        try {
+          Object.defineProperty(wrapper, '__duPlusVoice', { value: true });
+          socket.send = wrapper;
+          if (socket.send !== wrapper) return false;
+          activeSocket = socket;
+          originalSend = base;
+          wrappedSend = wrapper;
+          return true;
+        } catch (e) {
+          console.warn(TAG, 'falha ao instalar hook do gateway:', e);
+          return false;
+        }
       }
-      function voiceStatePayload() {
-        const selected = getModule('getVoiceChannelId');
-        const channels = getModule('getChannel');
-        const media = getModule('isMute', 'isDeaf');
-        const user = currentUser();
-        const voice = getModule('getVoiceStateForUser');
-        let channelId = null;
-        try { channelId = selected?.getVoiceChannelId?.(); } catch (_) {}
+      function buildPayload() {
+        const channelId = getVoiceChannel();
         if (!channelId) return null;
         let channel = null;
-        try { channel = channels?.getChannel(channelId); } catch (_) {}
-        let vs = null;
-        try { vs = user?.id && voice?.getVoiceStateForUser(user.id); } catch (_) {}
+        try { channel = channelStore()?.getChannel?.(channelId); } catch (_) {}
+        let voice = null;
+        try {
+          const id = currentUser()?.id;
+          if (id) voice = voiceStore()?.getVoiceStateForUser?.(id);
+        } catch (_) {}
+        const local = realMedia();
         return {
           guild_id: channel?.guild_id ?? lastVoicePayload?.guild_id ?? null,
           channel_id: channelId,
-          self_mute: !!(media?.isMute?.() ?? false),
-          self_deaf: !!(media?.isDeaf?.() ?? false),
-          self_video: !!(vs?.selfVideo ?? lastVoicePayload?.self_video ?? false),
+          self_mute: local.mute,
+          self_deaf: local.deaf,
+          self_video: voice?.selfVideo ?? lastVoicePayload?.self_video ?? false,
           flags: lastVoicePayload?.flags ?? 0
         };
       }
-      function refreshVoiceOnServer() {
-        if (!patchSocket()) return false;
-        const data = voiceStatePayload();
-        if (!data) { lastError = 'Pronto: o estado será aplicado quando entrar em uma chamada'; return true; }
-        try {
-          if (sock.isConnected?.() === false) { lastError = 'Gateway ainda está desconectado'; return false; }
-          sock.send(4, data);
-          lastError = '';
-          return true;
-        } catch (e) { lastError = 'Falha ao enviar estado: ' + e.message; return false; }
-      }
-      function toggleFake(which) {
-        if (!patchSocket()) { updateButtons(); return false; }
-        const previousMute = fakeMute, previousVoice = fakeVoice;
-        if (which === 'mute') fakeMute = !fakeMute;
-        else fakeVoice = !fakeVoice;
-        if (!refreshVoiceOnServer()) {
-          fakeMute = previousMute; fakeVoice = previousVoice;
-          updateButtons(); return false;
+      function syncToDiscord() {
+        const channelId = getVoiceChannel();
+        if (!channelId) {
+          syncState = 'pending';
+          statusText = 'Fora da chamada: o modo sera aplicado ao entrar';
+          return 'pending';
         }
-        updateButtons();
-        return true;
+        if (!hookSocket() || activeSocket?.isConnected?.() === false) {
+          syncState = 'pending';
+          statusText = 'Reconectando ao Gateway. O modo continua preparado';
+          return 'pending';
+        }
+        const payload = buildPayload();
+        if (!payload) {
+          syncState = 'pending';
+          statusText = 'Aguardando dados da chamada';
+          return 'pending';
+        }
+        try {
+          activeSocket.send(4, payload);
+          syncState = 'sent';
+          statusText = 'Estado de voz enviado ao Discord';
+          lastAppliedAt = Date.now();
+          return 'sent';
+        } catch (e) {
+          syncState = 'error';
+          statusText = `Falha no envio: ${String(e?.message || e)}`;
+          console.warn(TAG, statusText);
+          return 'error';
+        }
       }
-      const iconMic = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
-      const iconDeaf = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15V11a9 9 0 0 1 18 0v4"/><rect x="2" y="13" width="5" height="8" rx="2"/><rect x="17" y="13" width="5" height="8" rx="2"/><path d="M17 22a5 5 0 0 1-5 2"/></svg>';
-      function injectPlusStyle() {
-        if (document.getElementById(STYLE_ID_PLUS)) return;
-        const sheet = document.createElement('style'); sheet.id = STYLE_ID_PLUS;
-        sheet.textContent = `
-          #${VOICE_ID}{display:flex;align-items:center;gap:5px;margin:0 5px;flex-shrink:0}
-          #${VOICE_ID} button{display:flex;align-items:center;justify-content:center;position:relative;box-sizing:border-box;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:var(--background-modifier-selected,#313338);color:var(--interactive-normal,#dbdee1);cursor:pointer;transition:background .13s,color .13s,border-color .13s}
-          #${VOICE_ID} button:hover{background:#464958;color:white}
+      function toggle(kind) {
+        if (kind === 'mute') fakeMute = !fakeMute;
+        if (kind === 'voice') fakeVoice = !fakeVoice;
+        // Ambos os modos podem coexistir: Fake Voice sempre implica self_mute.
+        // Envia imediatamente OP4 quando ha chamada; senao aplica na proxima entrada.
+        const result = syncToDiscord();
+        updateButtons();
+        return result;
+      }
+      const micIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
+      const voiceIcon = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15v-4a9 9 0 0 1 18 0v4"/><rect x="2" y="13" width="5" height="8" rx="2"/><rect x="17" y="13" width="5" height="8" rx="2"/></svg>';
+      function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = `
+          #${VOICE_ID}{display:flex;align-items:center;justify-content:center;gap:6px;margin:0 5px;flex:0 0 auto}
+          #${VOICE_ID} button{display:inline-flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;padding:0;border:1px solid rgba(255,255,255,.13);border-radius:9px;background:var(--background-modifier-selected,#313338);color:var(--interactive-normal,#dbdee1);cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+          #${VOICE_ID} button:hover{background:var(--background-modifier-hover,#43444b);color:white}
+          #${VOICE_ID} button:focus-visible{outline:2px solid #99a3ff;outline-offset:2px}
           #${VOICE_ID} .du-plus-mute{width:29px;height:29px;min-width:29px;min-height:29px}
           #${VOICE_ID} .du-plus-voice{width:46px;height:36px;min-width:46px;min-height:36px}
-          #${VOICE_ID} .is-on{background:rgba(237,66,69,.18)!important;color:#ff616b!important;border-color:rgba(237,66,69,.8)!important}
-          #${VOICE_ID} .is-on:after{content:'';position:absolute;width:25px;height:2px;background:currentColor;transform:rotate(-43deg);border-radius:2px;left:50%;top:50%;margin-left:-12px}
-          #${VOICE_ID} .du-plus-mute.is-on:after{width:18px;margin-left:-9px}
-          #du-panel .du-plus-line{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:7px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);font-size:12px}
-          #du-panel .du-plus-line button{border:1px solid #5865f2;border-radius:8px;color:#fff;background:#4858a9;padding:7px 12px;cursor:pointer;white-space:nowrap}
-          #du-panel .du-plus-line button.on{background:#294b38;border-color:#3ba55c}
-          #du-panel .du-plus-line small{display:block;color:var(--mut);margin-top:4px;line-height:1.4}
-          #du-panel .du-plus-message{padding:12px;margin:8px 0;background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow-wrap:anywhere}
-          #du-panel .du-plus-message strong{font-size:12px;color:#fff}
-          #du-panel .du-plus-message small{display:block;color:var(--mut);font-size:11px;margin-top:4px}
-          #du-panel .du-plus-message p{white-space:pre-wrap;margin:9px 0 0;line-height:1.5;font-size:12px;color:#d7d7df}
-          #du-panel .du-plus-help{font-size:12px;line-height:1.5;color:var(--mut);margin:9px 0}
-          #du-panel .du-plus-danger{color:#ff8589;border:1px solid rgba(237,66,69,.4);background:rgba(237,66,69,.1);padding:8px 10px;border-radius:8px;cursor:pointer}
+          #${VOICE_ID} .is-on{background:rgba(237,66,69,.17)!important;color:#ff616b!important;border-color:rgba(237,66,69,.9)!important}
+          #${VOICE_ID} .is-on::after{content:'';position:absolute;width:23px;height:2px;background:currentColor;border-radius:2px;transform:rotate(-44deg);pointer-events:none}
+          #${VOICE_ID} .du-plus-mute.is-on::after{width:18px}
+          #${VOICE_ID} .is-pending{border-style:dashed!important}
+          #du-panel .du-plus-heading{color:#fff;font-weight:700;font-size:13px;margin:0 0 4px}
+          #du-panel .du-plus-hint{color:var(--mut);font-size:11px;line-height:1.5;margin:3px 0 12px}
+          #du-panel .du-plus-status{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);margin:8px 0 13px;font-size:12px;color:var(--txt)}
+          #du-panel .du-plus-status small{color:var(--mut);display:block;margin-top:4px;line-height:1.45}
+          #du-panel .du-plus-status.pending{border-color:rgba(240,182,116,.5)}
+          #du-panel .du-plus-status.error{border-color:rgba(237,66,69,.6)}
+          #du-panel .du-plus-card{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2)}
+          #du-panel .du-plus-card b{color:var(--txt);font-size:12px}
+          #du-panel .du-plus-card small{display:block;color:var(--mut);line-height:1.4;margin-top:4px;font-size:11px}
+          #du-panel .du-plus-card button{min-width:90px;background:var(--bg3);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 9px;cursor:pointer;font-size:11px}
+          #du-panel .du-plus-card button.active{background:rgba(237,66,69,.17);border-color:rgba(237,66,69,.6);color:#ff888d}
+          #du-panel .du-plus-card button:focus-visible{outline:2px solid #99a3ff}
         `;
-        document.head.appendChild(sheet);
+        document.head.appendChild(style);
       }
-      function canMountIn(node) { return !!(node && node.isConnected && node !== document.body && node.querySelectorAll('button').length >= 1); }
-      function findControlSpot() {
-        // Prefer buttons row inside the native account controls (bottom-left corner).
-        for (const panel of document.querySelectorAll('[class*="panels_"], [class*="panels-"]')) {
-          for (const row of panel.querySelectorAll('[class*="buttons_"], [class*="buttons-"]')) {
-            if (canMountIn(row) && row.querySelectorAll('button').length <= 10) return row;
-          }
+      function findControls() {
+        // Usa botao de mute nativo como ancora; evita colocar na linha errada.
+        const buttons = Array.from(document.querySelectorAll('button[aria-label],button[title]'));
+        const regex = /^(mute|unmute|silenciar|ativar microfone|desativar microfone|mutar|desmutar|microfone|microphone|toggle mute)(\b|\s|$)/i;
+        const native = buttons.find(b => regex.test(b.getAttribute('aria-label') || b.title || '') && !b.closest('#du-panel') && !b.closest(`#${VOICE_ID}`));
+        if (native) {
+          const row = native.closest('[class*="buttons_"][class], [class*="buttons-"][class]');
+          if (row && row !== document.body && row.isConnected) return row;
+          if (native.parentElement?.parentElement?.isConnected) return native.parentElement.parentElement;
         }
-        // Discord versions rename class hashes. Anchor to native mic/deafen labels.
-        const controls = [...document.querySelectorAll('button[aria-label],button[title]')];
-        const mic = controls.find(b => /(^mute$|microfone|micr[oó]fono|desativar microfone|mute microphone|unmute|silenciar)/i.test(b.getAttribute('aria-label') || b.title || ''));
-        if (mic) { const row = mic.parentElement?.parentElement; if (canMountIn(row)) return row; }
+        // Fallback: container de controles do rodape da conta.
+        for (const panel of document.querySelectorAll('[class*="panels_"][class], [class*="panels-"][class]')) {
+          const rows = Array.from(panel.querySelectorAll('[class*="buttons_"][class], [class*="buttons-"][class]'));
+          const row = rows.find(x => x.querySelectorAll('button').length >= 2 && x.querySelectorAll('button').length <= 7);
+          if (row && row.isConnected) return row;
+        }
         return null;
       }
-      function makeButton(type, cls, html, text, handler) {
-        const btn = document.createElement('button');
-        btn.type = 'button'; btn.className = cls; btn.dataset.duPlus = type;
-        btn.innerHTML = html; btn.setAttribute('role', 'switch');
-        btn.title = text;
-        btn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); handler(); });
-        return btn;
+      function createButton(kind, className, html) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = className;
+        el.dataset.duPlus = kind;
+        el.setAttribute('role','switch');
+        el.innerHTML = html;
+        el.addEventListener('click', (event) => {
+          event.stopPropagation(); event.preventDefault();
+          toggle(kind);
+        });
+        return el;
       }
       function updateButtons() {
-        const row = document.getElementById(VOICE_ID); if (!row) return;
-        for (const [kind, enabled, shown] of [['mute', fakeMute, options.showMute], ['voice', fakeVoice, options.showVoice]]) {
-          const b = row.querySelector(`[data-du-plus="${kind}"]`);
-          if (!b) continue;
-          b.style.display = shown ? 'flex' : 'none'; b.classList.toggle('is-on', enabled);
-          b.setAttribute('aria-checked', String(enabled));
-          b.title = kind === 'mute' ? `Fake Mute (pequeno): ${enabled ? 'ligado' : 'desligado'} — voz continua ativa` : `Fake Voice (grande): ${enabled ? 'ligado' : 'desligado'} — áudio continua ativo`;
+        const wrapper = document.getElementById(VOICE_ID);
+        if (!wrapper) return;
+        for (const [kind, enabled, visible] of [
+          ['mute', fakeMute, options.showMute],
+          ['voice', fakeVoice, options.showVoice]
+        ]) {
+          const button = wrapper.querySelector(`[data-du-plus="${kind}"]`);
+          if (!button) continue;
+          button.style.display = visible ? 'inline-flex' : 'none';
+          button.classList.toggle('is-on',enabled);
+          button.classList.toggle('is-pending',enabled && syncState === 'pending');
+          button.setAttribute('aria-checked',String(enabled));
+          const name = kind === 'mute' ? 'Fake Mute (pequeno)' : 'Fake Voice (maior)';
+          const s = enabled ? (syncState === 'pending' ? 'preparado (aguardando chamada)' : 'ativado') : 'desativado';
+          button.title = `${name}: ${s}`;
+          button.setAttribute('aria-label',`${name}: ${s}`);
         }
-        row.style.display = (options.showMute || options.showVoice) ? 'flex' : 'none';
+        wrapper.style.display = options.showMute || options.showVoice ? 'flex' : 'none';
       }
-      function mountButtons() {
+      function mount() {
         if (!document.body) return;
-        injectPlusStyle();
-        const spot = findControlSpot();
-        if (!spot) return;
+        injectStyles();
+        const target = findControls();
+        if (!target) return;
         let wrapper = document.getElementById(VOICE_ID);
         if (!wrapper) {
-          wrapper = document.createElement('div'); wrapper.id = VOICE_ID;
-          wrapper.appendChild(makeButton('mute','du-plus-mute',iconMic,'Fake Mute',()=>toggleFake('mute')));
-          wrapper.appendChild(makeButton('voice','du-plus-voice',iconDeaf,'Fake Voice',()=>toggleFake('voice')));
+          wrapper = document.createElement('div');
+          wrapper.id = VOICE_ID;
+          wrapper.append(
+            createButton('mute','du-plus-mute',micIcon),
+            createButton('voice','du-plus-voice',voiceIcon)
+          );
         }
-        if (wrapper.parentElement !== spot) spot.appendChild(wrapper);
+        if (wrapper.parentElement !== target) target.appendChild(wrapper);
         updateButtons();
       }
       function scheduleMount() {
         if (scheduled) return;
         scheduled = true;
-        setTimeout(() => { scheduled = false; mountButtons(); }, 300);
+        setTimeout(() => { scheduled = false; mount(); }, 250);
       }
-      function serializeMessage(msg, channelId) {
-        if (!msg) return null;
-        const id = String(msg.id || '');
-        const ch = String(msg.channel_id || msg.channelId || channelId || '');
-        if (!id || !ch) return null;
-        const author = msg.author || {};
-        const authorId = String(author.id || msg.author_id || '');
-        const attachmentNames = (Array.isArray(msg.attachments) ? msg.attachments : []).slice(0, 5).map(a => String(a.filename || 'arquivo').slice(0, 150));
-        return {
-          id, channelId: ch,
-          authorId, authorName: String(author.global_name || author.globalName || author.username || msg.nick || authorId || 'Desconhecido').slice(0, 90),
-          content: String(msg.content || '').slice(0, 4000),
-          attachments: attachmentNames,
-          seenAt: now()
-        };
-      }
-      function capture(msg, channelId) {
-        if (!options.saveDeleted) return;
-        const entry = serializeMessage(msg, channelId);
-        if (!entry) return;
-        const i = seen.findIndex(x => x.id === entry.id && x.channelId === entry.channelId);
-        if (i >= 0) seen.splice(i, 1);
-        seen.push(entry);
-        seen = keepRecent(seen, MAX_SEEN, 'seenAt');
-        safeSave('seen', seen);
-      }
-      function cacheChannel(channelId) {
-        if (!options.saveDeleted || !channelId) return;
-        const messages = getModule('getMessage', 'getMessages');
-        if (!messages?.getMessages) return;
-        try {
-          const collection = messages.getMessages(channelId);
-          const items = Array.isArray(collection) ? collection : (typeof collection?.toArray === 'function' ? collection.toArray() : collection?._array || []);
-          for (const msg of items.slice(-80)) capture(msg, channelId);
-        } catch (_) {}
-      }
-      function recordDeleted(channelId, messageId) {
-        if (!options.saveDeleted || !channelId || !messageId) return;
-        const messageStore = getModule('getMessage', 'getMessages');
-        let msg = null;
-        try { msg = messageStore?.getMessage?.(channelId, messageId); } catch (_) {}
-        const entry = (msg ? serializeMessage(msg, channelId) : null) || seen.find(x => x.id === String(messageId) && x.channelId === String(channelId));
-        if (!entry || (!entry.content && !entry.attachments.length)) return;
-        if (deleted.some(x => x.id === entry.id && x.channelId === entry.channelId)) return;
-        deleted.push({ ...entry, deletedAt: now() });
-        deleted = keepRecent(deleted, MAX_DELETED, 'deletedAt');
-        safeSave('deleted', deleted);
-      }
-      function onDiscordEvent(evt) {
-        if (!options.saveDeleted || !evt || typeof evt !== 'object') return;
-        const type = evt.type;
-        if (type === 'MESSAGE_CREATE') capture(evt.message, evt.channelId || evt.channel_id);
-        else if (type === 'MESSAGE_UPDATE') capture(evt.message, evt.channelId || evt.channel_id);
-        else if (type === 'MESSAGE_DELETE') recordDeleted(evt.channelId || evt.channel_id, evt.id || evt.messageId);
-        else if (type === 'MESSAGE_DELETE_BULK') {
-          const channelId = evt.channelId || evt.channel_id;
-          for (const id of (evt.ids || evt.messageIds || []).slice(0, 200)) recordDeleted(channelId, id);
-        } else if (type === 'CHANNEL_SELECT') {
-          cacheChannel(evt.channelId || evt.channel_id);
+      function subscribeVoiceEvents() {
+        if (voiceSubscriptions.length) return;
+        const flux = findModule('dispatch','subscribe','unsubscribe');
+        if (!flux) return;
+        dispatcher = flux;
+        for (const name of ['CONNECTION_OPEN','CONNECTION_RESUMED','VOICE_CHANNEL_SELECT']) {
+          const listener = () => {
+            memo.delete('socket');
+            hookSocket();
+            if (fakeMute || fakeVoice) syncToDiscord();
+            updateButtons();
+          };
+          try { flux.subscribe(name, listener); voiceSubscriptions.push([name,listener]); } catch (_) {}
         }
       }
-      function patchDispatcher() {
-        if (!options.saveDeleted) return;
-        const current = getModule('dispatch', 'subscribe', 'unsubscribe');
-        if (!current || typeof current.dispatch !== 'function') return;
-        if (dispatcher === current && current.dispatch?.__duPlusDispatch) return;
-        dispatcher = current;
-        const baseDispatch = current.dispatch;
-        originalDispatch = baseDispatch;
-        const wrapped = function(event, ...args) {
-          try { onDiscordEvent(event); } catch (e) { console.warn(mark, 'falha ao registrar evento', e); }
-          return baseDispatch.call(this, event, ...args);
-        };
-        try { Object.defineProperty(wrapped, '__duPlusDispatch', { value: true }); current.dispatch = wrapped; } catch (_) {}
+      function heading(body, title, description) {
+        const h = document.createElement('div');
+        h.className = 'du-plus-heading'; h.textContent = title; body.appendChild(h);
+        if (description) {
+          const p = document.createElement('p'); p.className = 'du-plus-hint';
+          p.textContent = description; body.appendChild(p);
+        }
       }
-      function disableDispatcher() {
-        if (dispatcher && originalDispatch && dispatcher.dispatch?.__duPlusDispatch) dispatcher.dispatch = originalDispatch;
-        dispatcher = null; originalDispatch = null;
-      }
-      const plain = (tag, text, parent) => { const element = document.createElement(tag); element.textContent = text; if (parent) parent.appendChild(element); return element; };
-      function heading(body, title, help) { plain('div', title, body).className = 'du-sec'; if (help) plain('p', help, body).className = 'du-plus-help'; }
-      function control(body, title, help, active, change) {
-        const line = document.createElement('div'); line.className = 'du-plus-line';
-        const text = document.createElement('div');
-        plain('strong', title, text); plain('small', help, text);
-        const b = document.createElement('button');
-        b.type = 'button'; b.textContent = active ? 'Ativado' : 'Desativado';
-        b.classList.toggle('on', !!active);
-        b.addEventListener('click', () => { change(); renderSettings(body); });
-        line.append(text, b); body.appendChild(line);
+      function panelToggle(body, title, description, on, change) {
+        const card = document.createElement('div');card.className = 'du-plus-card';
+        const detail = document.createElement('div');
+        const label = document.createElement('b');label.textContent = title;detail.appendChild(label);
+        const caption = document.createElement('small');caption.textContent = description;detail.appendChild(caption);
+        const button = document.createElement('button');button.type='button';
+        button.textContent = on ? 'Ativado' : 'Desativado';
+        button.setAttribute('aria-pressed', String(on));button.classList.toggle('active',on);
+        button.onclick = () => {change();renderSettings(body);};
+        card.append(detail,button);body.appendChild(card);
       }
       function renderSettings(body) {
         body.replaceChildren();
-        heading(body, 'Fake Voice e Fake Mute', 'Os botões ficam nos controles nativos de voz. O pequeno é Fake Mute; o maior é Fake Voice (simula estar surdo e mutado). A transmissão e recepção reais continuam dependendo das configurações locais de áudio.');
-        control(body, 'Mostrar botão Fake Mute (pequeno)', 'Exibe o botão menor ao lado dos controles de voz.', options.showMute, () => { options.showMute = !options.showMute; persistOptions(); });
-        control(body, 'Mostrar botão Fake Voice (grande)', 'Exibe o botão maior para simular surdez e mute.', options.showVoice, () => { options.showVoice = !options.showVoice; persistOptions(); });
-        control(body, 'Fake Mute agora', 'Reportar microfone desligado sem realmente cortar sua voz.', fakeMute, () => toggleFake('mute'));
-        control(body, 'Fake Voice agora', 'Reportar microfone e áudio desligados sem realmente silenciar seu PC.', fakeVoice, () => toggleFake('voice'));
-        heading(body, 'Registro de mensagens apagadas (24 horas)', 'Salva localmente mensagens novas/visíveis enquanto o mod está aberto. Não recupera mensagens apagadas antes da captura.');
-        control(body, 'Registrar mensagens apagadas', 'Desligado por padrão. Ao ligar, guarda mensagens vistas e as apagadas durante até 24 horas; sem envio para servidores externos.', options.saveDeleted, () => { options.saveDeleted = !options.saveDeleted; persistOptions(); if (options.saveDeleted) { patchDispatcher(); const selected = getModule('getChannelId'); try { cacheChannel(selected?.getChannelId?.()); } catch (_) {} } else { disableDispatcher(); seen = []; safeSave('seen', seen); } });
-        const go = document.createElement('button'); go.className = 'du-btn'; go.textContent = 'Abrir mensagens apagadas';
-        go.onclick = () => { const idx = tabs.findIndex(t => t.name === 'Apagadas 24h'); if (idx >= 0) { activeTab = idx; tabButtons.forEach((b,i) => b.classList.toggle('active', i === idx)); renderActiveTab(); } };
-        body.appendChild(go);
-        plain('p', lastError || 'Estado de voz: clique em cada botão para sincronizar com o gateway do Discord.', body).className = 'du-plus-help';
-      }
-      function renderDeleted(body) {
-        body.replaceChildren(); prune();
-        heading(body, 'Mensagens apagadas — últimas 24h', 'Exibe apenas mensagens recebidas enquanto o registro estava habilitado e que o Discord ainda não tinha apagado. Histórico apenas neste dispositivo.');
-        const toolbar = document.createElement('div'); toolbar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
-        const refresh = document.createElement('button'); refresh.className = 'du-btn'; refresh.style.width = 'auto'; refresh.textContent = 'Atualizar'; refresh.onclick = () => renderDeleted(body);
-        const clear = document.createElement('button'); clear.className = 'du-plus-danger'; clear.textContent = 'Limpar histórico';
-        clear.onclick = () => { if (confirm('Apagar definitivamente o histórico local?')) { seen=[];deleted=[];safeSave('seen',seen);safeSave('deleted',deleted);renderDeleted(body); } };
-        toolbar.append(refresh, clear); body.appendChild(toolbar);
-        if (!options.saveDeleted) plain('p', 'Registro desativado. Ative em "Voz e privacidade" para capturar novas mensagens.', body).className = 'du-plus-help';
-        if (!deleted.length) plain('p', 'Nenhuma mensagem apagada foi capturada nas últimas 24 horas.', body).className = 'du-plus-help';
-        for (const entry of [...deleted].reverse()) {
-          const item = document.createElement('div'); item.className = 'du-plus-message';
-          plain('strong', entry.authorName || 'Autor desconhecido', item);
-          const when = new Date(entry.deletedAt);
-          const channel = `Canal ${entry.channelId}`;
-          plain('small', `${channel} • apagada em ${when.toLocaleString('pt-BR')} • expira em ${new Date(entry.deletedAt + DAY).toLocaleString('pt-BR')}`, item);
-          if (entry.content) plain('p', entry.content, item);
-          if (entry.attachments?.length) plain('small', 'Anexos: ' + entry.attachments.join(', '), item);
-          body.appendChild(item);
-        }
+        heading(body, 'Estado da chamada', 'O Fake Mute envia self_mute; o Fake Voice envia self_mute e self_deaf ao Gateway. O microfone e os fones continuam controlados pelo Discord local.');
+        const status = document.createElement('div');status.className='du-plus-status';
+        status.classList.toggle('pending', syncState === 'pending');
+        status.classList.toggle('error', syncState === 'error');
+        const state = document.createElement('strong');
+        state.textContent = `${fakeMute ? 'Fake Mute ligado' : 'Fake Mute desligado'} · ${fakeVoice ? 'Fake Voice ligado' : 'Fake Voice desligado'}`;
+        const detail = document.createElement('small');detail.textContent=statusText;
+        status.append(state,detail);body.appendChild(status);
+        heading(body,'Ligar e desligar','Use estes controles ou os botões ao lado dos controles nativos do Discord.');
+        panelToggle(body,'Fake Mute — botão pequeno','Aparecer mutado na chamada sem desligar o microfone local.',fakeMute,()=>toggle('mute'));
+        panelToggle(body,'Fake Voice — botão maior','Aparecer mutado e sem ouvir, mantendo a recepção local.',fakeVoice,()=>toggle('voice'));
+        heading(body,'Exibição dos botões','Escolha quais controles extras aparecem na barra de voz.');
+        panelToggle(body,'Mostrar Fake Mute','Exibir o botão pequeno de microfone.',options.showMute,()=>{options.showMute=!options.showMute;save();updateButtons();});
+        panelToggle(body,'Mostrar Fake Voice','Exibir o botão maior de fone.',options.showVoice,()=>{options.showVoice=!options.showVoice;save();updateButtons();});
+        const hint = document.createElement('p');hint.className='du-plus-hint';
+        hint.textContent='Quando estiver fora de uma chamada, os modos ficam preparados. Ao conectar, o estado será enviado. Se estiver usando mute/deafen real, essas opções locais continuam valendo.';
+        body.appendChild(hint);
       }
       function start() {
-        if (mounted) return;
-        mounted = true;
-        injectPlusStyle();
-        patchSocket();
-        patchDispatcher();
-        mountButtons();
-        if (!listenersStarted) {
-          listenersStarted = true;
-          const observer = new MutationObserver(scheduleMount);
-          observer.observe(document.body, { childList: true, subtree: true });
-          // Handles voice gateway reconnects, as well as Discord renderer reloads.
-          setInterval(() => {
-            if (fakeMute || fakeVoice) {
-              const oldSocket = sock;
-              const oldHook = !!sock?.send?.__duPlusSend;
-              if (patchSocket() && (oldSocket !== sock || !oldHook)) refreshVoiceOnServer();
-            }
-            if (options.saveDeleted) patchDispatcher();
-            prune();
-          }, 5000);
-        }
-        console.info(mark, 'carregado: Fake Mute (pequeno), Fake Voice (grande), apagadas 24h');
+        if (running) return;
+        running = true;
+        cleanOldLogger();
+        injectStyles();
+        hookSocket();
+        subscribeVoiceEvents();
+        mount();
+        new MutationObserver(scheduleMount).observe(document.body, { childList:true, subtree:true });
+        // Reconexoes podem ocorrer sem evento Flux exposto em algumas builds.
+        setInterval(() => {
+          const old = activeSocket;
+          const oldHook = !!activeSocket && activeSocket.send === wrappedSend;
+          const hooked = hookSocket();
+          if (!voiceSubscriptions.length) subscribeVoiceEvents();
+          if (hooked && (old !== activeSocket || !oldHook) && (fakeMute || fakeVoice)) syncToDiscord();
+          cleanOldLogger();
+        }, 2000);
+        console.info(TAG,'ativo: Fake Mute pequeno + Fake Voice maior. Sem registro de mensagens.');
       }
-      return { start, renderSettings, renderDeleted, status: () => ({ fakeMute, fakeVoice, options, lastError, deletedCount: deleted.length }), debugEvent: onDiscordEvent };
+      return { start, renderSettings, status: () => ({fakeMute, fakeVoice, syncState, statusText, lastAppliedAt, options}) };
     })();
