@@ -30,5 +30,15 @@ jobs:
           node --check discordutils-global/renderer.js
           node --check test/oraculo-x.test.cjs
           node --check coleira-bot/src/index.js
+      - name: Validar sintaxe do instalador PowerShell sem executar instalacao
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile('discordutils-plus/instalador-gui.ps1', [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
       - name: Testar voz, vinculo por ID, checksums e consentimento
         run: node --test test/oraculo-x.test.cjs coleira-bot/test/policy.test.js
