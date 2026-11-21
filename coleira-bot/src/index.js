@@ -1,19 +1,26 @@
 'use strict';
 const http = require('node:http');
-const { timingSafeEqual } = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { timingSafeEqual, randomBytes } = require('node:crypto');
 const { Client, Events, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { mayEnroll, shouldFollow, optedOut } = require('./policy');
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 const GUILD_ID = process.env.DISCORD_GUILD_ID || '';
 const OWNER_ID = process.env.DISCORD_OWNER_ID || '';
-const CONTROL_KEY = process.env.COLEIRA_CONTROL_KEY || '';
 const PORT = Number(process.env.COLEIRA_PORT || 37659);
 if (!TOKEN || !/^\d{15,22}$/.test(GUILD_ID) || !/^\d{15,22}$/.test(OWNER_ID) ||
-    (CONTROL_KEY.length < 24 || CONTROL_KEY === 'UMA_CHAVE_ALEATORIA_DE_32_CARACTERES' || !/^[a-zA-Z0-9_-]+$/.test(CONTROL_KEY)) || !Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
-  console.error('Configure o arquivo .env (token do bot, IDs, chave de controle e porta).');
+    !Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
+  console.error('Configure .env: token do BOT OFICIAL, IDs do servidor/dono e porta.');
   process.exit(1);
 }
+// Associacao por Discord ID, com chave temporaria gerada automaticamente.
+// O ID identifica o dono, mas nao e uma senha: segredo fica entre processos locais.
+const CONTROL_KEY = randomBytes(32).toString('hex');
+const BRIDGE_DIR = path.join(process.env.APPDATA || path.join(os.homedir(), '.config'), 'OraculoX');
+const BRIDGE_FILE = path.join(BRIDGE_DIR, 'coleira-bridge.json');
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
@@ -21,7 +28,7 @@ const subscribers = new Set();
 let enabled = false;
 let ownerChannelId = null;
 const snapshot = () => ({
-  ready: client.isReady(), active: enabled, ownerChannelId, subscribers: [...subscribers]
+  ready: client.isReady(), active: enabled, ownerId: OWNER_ID, guildId: GUILD_ID, ownerChannelId, subscribers: [...subscribers]
 });
 function activate(state) {
   enabled = state;
@@ -125,6 +132,17 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
+function saveBridge() {
+  fs.mkdirSync(BRIDGE_DIR, { recursive:true, mode:0o700 });
+  fs.writeFileSync(BRIDGE_FILE, JSON.stringify({ ownerId:OWNER_ID, port:PORT, key:CONTROL_KEY, pid:process.pid }), { mode:0o600, flag:'w' });
+  try { fs.chmodSync(BRIDGE_FILE, 0o600); } catch (_) {}
+}
+function removeBridge() {
+  try {
+    const existing = JSON.parse(fs.readFileSync(BRIDGE_FILE,'utf8'));
+    if (existing.key === CONTROL_KEY) fs.unlinkSync(BRIDGE_FILE);
+  } catch (_) {}
+}
 function validKey(given) {
   const a = Buffer.from(typeof given === 'string' ? given : '', 'utf8');
   const b = Buffer.from(CONTROL_KEY, 'utf8');
@@ -140,7 +158,10 @@ function respond(res, status, object) {
 }
 const server = http.createServer((req, res) => {
   if (!validKey(req.headers['x-coleira-key'])) {
-    return respond(res, 401, {error:'Chave de controle incorreta.'});
+    return respond(res, 401, {error:'Autenticacao local invalida.'});
+  }
+  if (req.headers['x-discord-owner-id'] !== OWNER_ID) {
+    return respond(res, 403, {error:'ID diferente do proprietario configurado no bot.'});
   }
   if (req.method === 'GET' && req.url === '/status') {
     return respond(res, 200, snapshot());
@@ -163,7 +184,19 @@ const server = http.createServer((req, res) => {
   respond(res, 404, {error:'Rota desconhecida.'});
 });
 server.listen(PORT, '127.0.0.1', () => {
-  console.log('Ponte local em 127.0.0.1:' + PORT);
+  try {
+    saveBridge();
+    console.log('Ponte vinculada ao Discord ID ' + OWNER_ID + ' em 127.0.0.1:' + PORT);
+  } catch (e) {
+    console.error('Nao foi possivel preparar o vinculo local:', e.message);
+    server.close();
+    client.destroy();
+    process.exitCode = 1;
+  }
+});
+server.on('error', e => {
+  console.error('Ponte local nao abriu:', e.message);
+  process.exitCode = 1;
 });
 client.login(TOKEN).catch(error => {
   console.error('Login do bot falhou:', error.message);
@@ -171,3 +204,4 @@ client.login(TOKEN).catch(error => {
   process.exitCode = 1;
 });
 process.on('SIGINT', () => { activate(false); server.close(); client.destroy(); });
+process.on('exit', removeBridge);
