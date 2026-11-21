@@ -1642,6 +1642,76 @@ if (window.__DiscordUtilsLoaded) {  } else {
       body.appendChild(el('div', { className:'du-hint' }, 'Previa local nao significa estado visivel a outras pessoas. Este recurso depende do comportamento atual do Discord.'));
       paint();
     }
+
+    // Coleira: apenas controle do bot oficial local. Nenhum token de usuario
+    // ou credencial do bot e exposto na pagina do Discord.
+    let coleiraSessionKey = '';
+    let coleiraRequestNumber = 0;
+    function renderColeira(body) {
+      duVoiceStyle();
+      body.appendChild(el('div', {className:'du-sec'}, 'Coleira - acompanhamento de voz'));
+      body.appendChild(el('div', {className:'du-hint'}, 
+        'Requer o bot oficial em execucao. Quem quiser acompanhar entra na sua chamada e usa /seguir. Ao sair ou trocar de canal, a inscricao e cancelada.'));
+      const keyInput = el('input', {
+        className:'du-input', type:'password', autocomplete:'off',
+        placeholder:'Coleira Control Key (.env)'
+      });
+      keyInput.value = coleiraSessionKey;
+      keyInput.setAttribute('aria-label', 'Chave local de controle da Coleira');
+      keyInput.oninput = () => { coleiraSessionKey = keyInput.value.trim(); };
+      body.appendChild(keyInput);
+      body.appendChild(el('div', {className:'du-hint'},
+        'A chave e mantida apenas nesta sessao do painel. Nunca use o token da sua conta do Discord.'));
+      const status = el('div', {className:'du-mod-preview'});
+      status.textContent = 'Estado: clique em Conectar / Atualizar.';
+      body.appendChild(status);
+      const members = el('div', {className:'du-hint'});
+      members.textContent = 'Participantes: aguardando conexao.';
+      body.appendChild(members);
+      const latest = { id:0 };
+      const send = (op, active) => {
+        if (coleiraSessionKey.length < 24) {
+          status.textContent = 'Informe a chave de controle do .env (24+ caracteres).';
+          return;
+        }
+        latest.id = ++coleiraRequestNumber;
+        status.textContent = 'Comunicando com bot local...';
+        sendNative('coleira', {op,active, key:coleiraSessionKey,requestId:latest.id});
+      };
+      const row = el('div', {style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px'});
+      const connect = el('button', {className:'du-btn',style:'flex:1;min-width:120px'}, 'Conectar / Atualizar');
+      connect.onclick = () => send('status');
+      const on = el('button', {className:'du-btn acc',style:'flex:1;min-width:90px'}, 'Ligar');
+      on.onclick = () => send('toggle',true);
+      const off = el('button', {className:'du-btn red',style:'flex:1;min-width:90px'}, 'Desligar');
+      off.onclick = () => send('toggle',false);
+      row.append(connect,on,off);
+      body.appendChild(row);
+      const help = el('div', {className:'du-hint',style:'margin-top:14px'});
+      help.textContent = 'Comandos no servidor: /coleira ligar, /coleira desligar (somente dono), /seguir (participante), /parar (sair). Ao trocar de canal por conta propria, o participante nao e puxado de volta.';
+      body.appendChild(help);
+      const receive = event => {
+        if (!body.isConnected) {
+          window.removeEventListener('du-coleira-response',receive);
+          return;
+        }
+        const detail = event.detail || {};
+        if (detail.requestId !== latest.id) return;
+        if (!detail.ok) {
+          status.textContent = 'Erro: ' + (detail.error || 'Falha desconhecida');
+          return;
+        }
+        const info = detail.data || {};
+        status.textContent = 'Bot: ' + (info.ready ? 'conectado' : 'iniciando') +
+          ' | Coleira: ' + (info.active ? 'LIGADA' : 'DESLIGADA') +
+          ' | Dono no canal: ' + (info.ownerChannelId || 'nenhum');
+        const list = Array.isArray(info.subscribers) ? info.subscribers : [];
+        members.textContent = 'Participantes autorizados (' + list.length + '): ' +
+          (list.length ? list.join(', ') : 'nenhum. Use /seguir no Discord.');
+      };
+      window.addEventListener('du-coleira-response',receive);
+    }
+
     /* === DiscordUtils Global Mod End === */
 
     let panel, panelBody, tabButtons = [], activeTab = 0, positioned = false;
@@ -1653,6 +1723,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
       { name: 'Otimizações', icon: 'rocket', render: renderOtimizacoes },
       { name: 'Diversos', icon: 'trash', render: renderDiversos },
       { name: 'Mod', icon: 'shield', render: renderMod },
+      { name: 'Coleira', icon: 'users', render: renderColeira },
     ];
 
     const renderActiveTab = () => {
