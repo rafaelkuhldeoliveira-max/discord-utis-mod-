@@ -266,9 +266,6 @@
           : 'Fora da chamada: o modo sera aplicado ao entrar';
         return 'pending';
       }
-      function requestRestart() {
-        try { window.alert('ORACULO X: preferencia salva. Feche completamente o Discord pela bandeja do Windows e abra novamente para aplicar a configuracao.'); } catch (_) {}
-      }
       function toggle(kind) {
         if (kind === 'mute') fakeMute = !fakeMute;
         if (kind === 'voice') fakeVoice = !fakeVoice;
@@ -278,7 +275,6 @@
         const result = syncToDiscord();
         updateButtons();
         syncLocalStatus();
-        requestRestart();
         return result;
       }
       const micIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
@@ -495,7 +491,7 @@
         const button = document.createElement('button');button.type='button';
         button.textContent = on ? 'Ativado' : 'Desativado';
         button.setAttribute('aria-pressed', String(on));button.classList.toggle('active',on);
-        button.onclick = () => {change();renderSettings(body); if (!/^Fake (Mute|Voice) —/.test(title)) requestRestart();};
+        button.onclick = () => {change();renderSettings(body);};
         card.append(detail,button);body.appendChild(card);
       }
       function renderSettings(body) {
@@ -551,7 +547,7 @@
         });
         body.appendChild(voiceBind);
         const hint = document.createElement('p');hint.className='du-plus-hint';
-        hint.textContent='Fora da chamada, os modos ficam preparados e aplicam ao entrar. As escolhas ficam salvas por conta. Depois de alterar uma opcao, feche totalmente o Discord e reabra.';
+        hint.textContent='Fora da chamada, os modos ficam preparados e aplicam ao entrar. As escolhas ficam salvas por conta. As alteracoes de voz sao aplicadas na hora; ao mudar o estado, confirme em uma chamada.';
         body.appendChild(hint);
       }
 
@@ -594,7 +590,6 @@
           latest.id = ++coleiraSeq;
           status.textContent = 'Comunicando com o bot em 127.0.0.1:37659...';
           sendNative('coleira',{op,active,key:coleiraKey,requestId:latest.id});
-          if (op === 'toggle') requestRestart();
         };
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px';
