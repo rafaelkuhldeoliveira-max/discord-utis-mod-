@@ -49,3 +49,9 @@ O instalador verifica o SHA-256 do complemento, faz backup do renderer original 
 ## Desinstalar
 
 Execute o mesmo comando e clique em **Desinstalar** para restaurar o cliente. Ao iniciar a nova versao, dados antigos de mensagens apagadas salvos no armazenamento local pelo complemento anterior sao apagados.
+
+## Coleira — bot oficial (participacao voluntaria)
+
+O projeto agora inclui uma nova aba **Coleira** no painel e o bot complementar com os comandos `/coleira`, `/seguir` e `/parar`.
+Os usuarios precisam consentir com `/seguir` na mesma chamada; sair ou trocar de canal cancela o acompanhamento.
+Leia as instrucoes em [coleira-bot/README.md](coleira-bot/README.md). O bot deve ser iniciado separadamente com Node.js; o instalador PowerShell continua instalando apenas o plugin.
