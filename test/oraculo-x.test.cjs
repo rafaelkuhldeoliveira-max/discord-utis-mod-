@@ -93,7 +93,7 @@ test('tema Oraculo X aplica vermelho carmesim ao executor de Orbs e a barra de t
   assert.match(renderer,/#du-panel\{--bg:#09060b/);
   assert.match(renderer,/#du-panel \.q-card\{[^\n]*#1b0c14/);
   assert.match(renderer,/#du-panel \.q-reward\{[^\n]*#ffb1c3/);
-  assert.match(renderer,/\.du-job \.jfill\{[^\n]*linear-gradient\(90deg,#c51639,#c51639\)/);
+  assert.match(renderer,/\.du-job \.jfill\{[^\n]*linear-gradient\(90deg,#ac1034,#ff456a\)/);
   assert.match(renderer,/class="qp-track"/);
   assert.match(renderer,/class="qp-bar"[^\n]*linear-gradient\(90deg,#ac1034,#ff456a\)/);
   assert.match(renderer,/aria-valuenow/);
