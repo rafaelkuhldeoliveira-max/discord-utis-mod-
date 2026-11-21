@@ -3,14 +3,16 @@ on:
   push:
     paths:
       - 'discordutils-plus/**'
-      - 'discordutils-global/inject.js'
+      - 'discordutils-global/**'
+      - 'test/**'
       - 'coleira-bot/**'
       - 'vencord-userplugin/**'
       - '.github/workflows/oraculo-x-check.yml'
   pull_request:
     paths:
       - 'discordutils-plus/**'
-      - 'discordutils-global/inject.js'
+      - 'discordutils-global/**'
+      - 'test/**'
       - 'coleira-bot/**'
       - 'vencord-userplugin/**'
 jobs:
@@ -25,6 +27,8 @@ jobs:
         run: |
           node --check discordutils-plus/addon.js
           node --check discordutils-global/inject.js
+          node --check discordutils-global/renderer.js
+          node --check test/oraculo-x.test.cjs
           node --check coleira-bot/src/index.js
-      - name: Testar regras de consentimento da Coleira
-        run: node --test coleira-bot/test/policy.test.js
+      - name: Testar voz, vinculo por ID, checksums e consentimento
+        run: node --test test/oraculo-x.test.cjs coleira-bot/test/policy.test.js
