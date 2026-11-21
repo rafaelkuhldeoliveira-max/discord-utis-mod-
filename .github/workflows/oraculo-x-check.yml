@@ -1,0 +1,30 @@
+name: Oraculo X - verificacoes
+on:
+  push:
+    paths:
+      - 'discordutils-plus/**'
+      - 'discordutils-global/inject.js'
+      - 'coleira-bot/**'
+      - 'vencord-userplugin/**'
+      - '.github/workflows/oraculo-x-check.yml'
+  pull_request:
+    paths:
+      - 'discordutils-plus/**'
+      - 'discordutils-global/inject.js'
+      - 'coleira-bot/**'
+      - 'vencord-userplugin/**'
+jobs:
+  syntax-and-consent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validar JavaScript do complemento e da ponte
+        run: |
+          node --check discordutils-plus/addon.js
+          node --check discordutils-global/inject.js
+          node --check coleira-bot/src/index.js
+      - name: Testar regras de consentimento da Coleira
+        run: node --test coleira-bot/test/policy.test.js
