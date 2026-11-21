@@ -18,17 +18,13 @@ npm install
 npm start
 ```
 
-Use somente o token **do bot**. Em `.env`, preencha `DISCORD_GUILD_ID` com o ID do servidor, `DISCORD_OWNER_ID` com seu ID e `COLEIRA_CONTROL_KEY` com chave aleatoria de pelo menos 24 caracteres. Para gerar chave no PowerShell:
-
-```powershell
-[guid]::NewGuid().ToString('N')
-```
+Use somente o token **do bot**. Em `.env`, preencha `DISCORD_GUILD_ID` com o ID do servidor, `DISCORD_OWNER_ID` com seu ID do dono do bot. **Nao existe chave para digitar no painel**: o bot gera um segredo temporario e o processo local le esse segredo com permissoes do sistema operacional. O vinculo da conta e validado por ID.
 
 A ponte usa apenas `127.0.0.1:37659`, portanto mantenha `COLEIRA_PORT=37659`. **Nao publique `.env`**.
 
 ## Integracao ao DiscordUtils Mod
 
-Instale/atualize o seu mod pelo instalador principal **apos incorporar a alteracao no branch main**. Abra **Discord Utils > Coleira**, digite sua `COLEIRA_CONTROL_KEY` (nao e gravada em disco) e clique em **Conectar / Atualizar**. Depois use **Ligar** ou **Desligar** no painel.
+Instale/atualize o seu mod pelo instalador principal **apos incorporar a alteracao no branch main**. Abra **Oraculo X > Coleira** e clique em **Conectar / Atualizar**. O ID exibido no painel precisa ser o mesmo de `DISCORD_OWNER_ID`. Nao precisa digitar token ou chave no painel. Depois use **Ligar** ou **Desligar** no painel.
 
 Para o controle funcionar, deixe o bot aberto com `npm start` no mesmo computador onde roda o Discord modificado.
 
@@ -52,6 +48,6 @@ npm test
 - `src/policy.js`: regras de consentimento e acompanhamento.
 - `test/policy.test.js`: testes unitarios.
 - `discordutils-global/renderer.js`: nova aba Coleira sem alterar Fake Mute e Fake Voice.
-- `discordutils-global/inject.js`: comunicacao entre painel e bot pelo localhost, com chave de controle.
+- `discordutils-global/inject.js`: comunicacao entre painel e bot pelo localhost, com segredo interno gerado automaticamente, nunca exposto na interface.
 
-O bot e o cliente DiscordUtils Mod nao foram verificados em chamada real neste PR. Revisao manual das permissoes e teste com participantes voluntarios sao recomendados.
+O bot e o cliente Oraculo X nao foram verificados em chamada real neste PR. Revisao manual das permissoes e teste com participantes voluntarios sao recomendados.
