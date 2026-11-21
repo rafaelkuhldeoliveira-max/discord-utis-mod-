@@ -213,7 +213,21 @@ function Copy-PluginFiles {
     New-Item -ItemType Directory -Force -Path $Install | Out-Null
     Copy-Item -LiteralPath (Join-Path $src 'inject.js')   -Destination $InjectFile -Force
     Copy-Item -LiteralPath (Join-Path $src 'renderer.js') -Destination (Join-Path $Install 'renderer.js') -Force
-    Write-Log 'Arquivos do plugin copiados' 'ok'
+    # Oraculo X: instala a ponte local da Coleira (sem token de usuario).
+    $bridgeUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-global/inject.js'
+    $bridgeSha256 = 'F664BBA75B8E9E4D0290DE822BA380FDAF14913E40AFDCC001BB83908F44122A'
+    $bridgeFile = Join-Path $env:TEMP ('oraculo-bridge-' + [Guid]::NewGuid().ToString('N') + '.js')
+    try {
+        Invoke-WebRequest -Uri $bridgeUrl -OutFile $bridgeFile -UseBasicParsing
+        $bridgeHash = (Get-FileHash -LiteralPath $bridgeFile -Algorithm SHA256).Hash
+        if ($bridgeHash -ne $bridgeSha256) {
+            throw "Integridade da ponte Coleira invalida. Esperado: $bridgeSha256; recebido: $bridgeHash"
+        }
+        Copy-Item -LiteralPath $bridgeFile -Destination $InjectFile -Force
+    } finally {
+        Remove-Item -LiteralPath $bridgeFile -Force -ErrorAction SilentlyContinue
+    }
+    Write-Log 'Arquivos do Oraculo X e ponte Coleira verificados' 'ok'
 }
 
 function Get-DisblockCss {
@@ -312,7 +326,7 @@ function Remove-CorePatch {
 # Adicional DiscordUtils+: integrado ao mesmo painel do instalador original.
 function Install-DiscordUtilsPlus {
     $rawUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-plus/addon.js'
-    $expected = '750F97E92D16181FA49DE50C8C5B545191FCBC5B52933FAF686A5724480D156F'
+    $expected = '1FA5C8F843B5ADE128DFFBC53911988A05B14F050C30017CF290F3E65CD1EDCB'
     $addon = Join-Path $env:TEMP ('du-plus-' + [Guid]::NewGuid().ToString('N') + '.js')
     try {
         Write-Log 'Baixando complemento Fake Mute e Fake Voice...'
@@ -337,7 +351,8 @@ function Install-DiscordUtilsPlus {
             "`n    // === DiscordUtilsPlus: end ===`n" + $marker)
         $code = $code.Replace($tabMark,
             "    const tabs = [`n" +
-            "      { name: 'Voz', icon: 'shield', render: DU_PLUS.renderSettings },`n")
+            "      { name: 'Voz', icon: 'shield', render: DU_PLUS.renderSettings },`n" +
+            "      { name: 'Coleira', icon: 'users', render: DU_PLUS.renderColeira },`n")
         $code = $code.Replace($startMark, $startMark + ' DU_PLUS.start();')
 
         # O instalador original copia novamente a base em cada reparo.
@@ -352,7 +367,7 @@ function Install-DiscordUtilsPlus {
         if (-not ([System.IO.File]::ReadAllText($renderer)).Contains('DiscordUtilsPlus: begin')) {
             throw 'Falha ao gravar o complemento no renderer do Discord.'
         }
-        Write-Log 'Fake Mute pequeno e Fake Voice maior integrados.' 'ok'
+        Write-Log 'Fake Mute pequeno, Fake Voice maior e Coleira integrados.' 'ok'
         Write-Log 'Painel de voz reorganizado; registro de mensagens removido.' 'ok'
     } finally {
         Remove-Item -LiteralPath $addon -Force -ErrorAction SilentlyContinue
@@ -371,7 +386,7 @@ function Invoke-Install {
     Write-Log "Plugin injetado em $n versao(oes) do Discord" 'ok'
     Start-Discord
     Write-StatusLine
-    Write-Log 'Pronto. Abra Discord Utils > Voz para configurar os botões.' 'ok'
+    Write-Log 'Pronto. Abra ORACULO X > Voz ou Coleira. Feche/reabra o Discord se nao aparecer.' 'ok'
     Write-Log 'Depois de atualizar o Discord, use Reparar se necessario.' 'warn'
 }
 
@@ -450,20 +465,20 @@ function Show-Gui {
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
     $cBg    = [System.Drawing.Color]::FromArgb(11, 11, 15)
-    $cHead  = [System.Drawing.Color]::FromArgb(19, 19, 25)
-    $cCard  = [System.Drawing.Color]::FromArgb(24, 24, 31)
-    $cCardH = [System.Drawing.Color]::FromArgb(34, 34, 43)
-    $cLine  = [System.Drawing.Color]::FromArgb(42, 42, 52)
+    $cHead  = [System.Drawing.Color]::FromArgb(21, 8, 14)
+    $cCard  = [System.Drawing.Color]::FromArgb(27, 12, 20)
+    $cCardH = [System.Drawing.Color]::FromArgb(43, 16, 28)
+    $cLine  = [System.Drawing.Color]::FromArgb(76, 25, 42)
     $cTxt   = [System.Drawing.Color]::FromArgb(236, 236, 237)
     $cMut   = [System.Drawing.Color]::FromArgb(125, 125, 137)
-    $cAcc   = [System.Drawing.Color]::FromArgb(139, 92, 246)
-    $cAccH  = [System.Drawing.Color]::FromArgb(124, 70, 236)
+    $cAcc   = [System.Drawing.Color]::FromArgb(197, 22, 57)
+    $cAccH  = [System.Drawing.Color]::FromArgb(232, 36, 76)
     $cRed   = [System.Drawing.Color]::FromArgb(255, 107, 110)
     $cGreen = [System.Drawing.Color]::FromArgb(126, 224, 163)
     $cLog   = [System.Drawing.Color]::FromArgb(8, 8, 11)
 
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = 'Discord Utils+'
+    $form.Text = 'ORACULO X'
     $form.ClientSize = New-Object System.Drawing.Size(420, 452)
     $form.StartPosition = 'CenterScreen'
     $form.FormBorderStyle = 'None'   
@@ -507,7 +522,7 @@ function Show-Gui {
         $f = New-Object System.Drawing.Font('Segoe UI Semibold', 13.5)
         $b = New-Object System.Drawing.SolidBrush($cTxt)
         $r = New-Object System.Drawing.RectangleF(0, 0, $s.Width, $s.Height)
-        $g.DrawString('Discord Utils+', $f, $b, $r, $sf)
+        $g.DrawString('ORACULO X', $f, $b, $r, $sf)
         $f.Dispose(); $b.Dispose(); $sf.Dispose()
     })
 
@@ -749,7 +764,7 @@ function Show-Gui {
     Write-Log 'Reparar - reinstala o plugin e o complemento de voz.'
     Write-Log 'Desinstalar - restaura o Discord e apaga a pasta do plugin.'
     Write-Log ''
-    Write-Log 'Inclui Fake Mute e Fake Voice com controles independentes.'
+    Write-Log 'Inclui Fake Mute, Fake Voice e Coleira com permissoes e consentimento.'
 
     [void]$form.ShowDialog()
 }
