@@ -44,7 +44,7 @@ test('os toggles nao pedem reiniciar',()=>{
   assert.doesNotMatch(gui,/restartNeeded:\s*true/);
 });
 test('Coleira usa ID no painel e segredo nao exposto',()=>{
-  assert.match(renderer,/ownerId:currentId/);
+  assert.match(renderer,/ownerId:id/);
   assert.doesNotMatch(renderer,/coleiraSessionKey|COLEIRA_CONTROL_KEY|x-coleira-key/i);
   assert.match(bridge,/coleira-bridge\.json/);
   assert.match(bridge,/bridge\.ownerId !== ownerId/);
