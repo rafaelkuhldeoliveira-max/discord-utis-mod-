@@ -21,18 +21,64 @@ if (!TOKEN || !/^\d{15,22}$/.test(GUILD_ID) || !/^\d{15,22}$/.test(OWNER_ID) ||
 const CONTROL_KEY = randomBytes(32).toString('hex');
 const BRIDGE_DIR = path.join(process.env.APPDATA || path.join(os.homedir(), '.config'), 'OraculoX');
 const BRIDGE_FILE = path.join(BRIDGE_DIR, 'coleira-bridge.json');
+const PAIR_FILE = path.join(BRIDGE_DIR, 'coleira-pair.json');
+const validId = id => typeof id === 'string' && /^\d{15,22}$/.test(id);
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
 const subscribers = new Set();
 let enabled = false;
-let ownerChannelId = null;
+let leaderChannelId = null;
+let followerId = null;
+let leaderId = null;
+function loadPair() {
+  try {
+    const p = JSON.parse(fs.readFileSync(PAIR_FILE, 'utf8'));
+    if (validId(p.followerId) && validId(p.leaderId) && p.followerId !== p.leaderId) {
+      followerId = p.followerId;
+      leaderId = p.leaderId;
+    }
+  } catch (_) { /* A primeira configuracao sera feita pelo painel. */ }
+}
+function persistPair() {
+  fs.mkdirSync(BRIDGE_DIR, {recursive:true,mode:0o700});
+  fs.writeFileSync(PAIR_FILE, JSON.stringify({followerId,leaderId}), {mode:0o600,flag:'w'});
+  try { fs.chmodSync(PAIR_FILE,0o600); } catch (_) {}
+}
+loadPair();
 const snapshot = () => ({
-  ready: client.isReady(), active: enabled, ownerId: OWNER_ID, guildId: GUILD_ID, ownerChannelId, subscribers: [...subscribers]
+  ready:client.isReady(), active:enabled, ownerId:OWNER_ID, guildId:GUILD_ID,
+  followerId, leaderId, leaderChannelId,
+  authorized:!!(followerId && subscribers.has(followerId)),
+  subscribers:[...subscribers]
 });
 function activate(state) {
+  if (state && (!validId(followerId) || !validId(leaderId))) {
+    throw new Error('Configure os dois IDs da Coleira no painel antes de ligar.');
+  }
   enabled = state;
   if (!state) subscribers.clear();
+  return snapshot();
+}
+async function configurePair(nextFollowerId,nextLeaderId) {
+  if (!validId(nextFollowerId) || !validId(nextLeaderId) || nextFollowerId === nextLeaderId) {
+    throw new Error('Informe dois IDs diferentes do Discord (15 a 22 digitos).');
+  }
+  if (!client.isReady()) throw new Error('Bot ainda nao esta conectado ao Discord.');
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const [follower,leader] = await Promise.all([
+    guild.members.fetch(nextFollowerId), guild.members.fetch(nextLeaderId)
+  ]);
+  if (!follower || !leader || follower.user?.bot || leader.user?.bot) {
+    throw new Error('Os dois IDs devem ser de membros humanos deste servidor.');
+  }
+  // Alterar IDs exige uma nova autorizacao do participante, nunca herdada.
+  enabled = false;
+  subscribers.clear();
+  followerId = nextFollowerId;
+  leaderId = nextLeaderId;
+  leaderChannelId = leader.voice.channelId;
+  persistPair();
   return snapshot();
 }
 const commands = [
@@ -55,9 +101,11 @@ client.once(Events.ClientReady, async ready => {
   try {
     const guild = await ready.guilds.fetch(GUILD_ID);
     await guild.commands.set(commands);
-    const owner = await guild.members.fetch(OWNER_ID);
-    ownerChannelId = owner.voice.channelId;
-    console.log('Comandos registrados; coleira desligada.');
+    if (leaderId) {
+      const leader = await guild.members.fetch(leaderId);
+      leaderChannelId = leader.voice.channelId;
+    }
+    console.log('Comandos registrados; coleira desligada. Vinculo: ' + (followerId && leaderId ? 'configurado' : 'aguardando dois IDs no painel') + '.');
   } catch (error) { console.error('Falha no registro dos comandos:', error.message); }
 });
 
@@ -69,8 +117,9 @@ client.on(Events.InteractionCreate, async interaction => {
       if (interaction.user.id !== OWNER_ID) return await answer('Somente o dono controla a coleira.');
       const action = interaction.options.getString('acao', true);
       if (action === 'ligar') {
+        if (!followerId || !leaderId) return await answer('Configure os dois IDs da Coleira no painel Oraculo X.');
         activate(true);
-        await answer('Coleira ligada. Quem quiser participar entra na sua chamada e usa /seguir.');
+        await answer('Coleira ligada. O participante configurado precisa entrar na chamada do lider e usar /seguir.');
       } else if (action === 'desligar') {
         activate(false);
         await answer('Coleira desligada; inscricoes removidas.');
@@ -82,18 +131,22 @@ client.on(Events.InteractionCreate, async interaction => {
     }
     if (interaction.commandName === 'parar') {
       subscribers.delete(interaction.user.id);
-      return await answer('Voce nao esta mais seguindo. Pode sair quando quiser.');
+      return await answer('Acompanhamento cancelado. Voce pode sair quando quiser.');
     }
     if (interaction.commandName === 'seguir') {
-      const owner = await interaction.guild.members.fetch(OWNER_ID);
-      const member = await interaction.guild.members.fetch(interaction.user.id);
-      ownerChannelId = owner.voice.channelId;
-      if (interaction.user.id === OWNER_ID) return await answer('Voce e o dono da coleira.');
-      if (!mayEnroll(enabled, ownerChannelId, member.voice.channelId)) {
-        return await answer('Com a coleira ligada, entre na mesma chamada do dono e use /seguir.');
+      if (interaction.user.id !== followerId || !leaderId) {
+        return await answer('Esta conta nao e a pessoa configurada como participante da Coleira.');
+      }
+      const [leader,member] = await Promise.all([
+        interaction.guild.members.fetch(leaderId),
+        interaction.guild.members.fetch(interaction.user.id)
+      ]);
+      leaderChannelId = leader.voice.channelId;
+      if (!mayEnroll(enabled, leaderChannelId, member.voice.channelId)) {
+        return await answer('Entre no mesmo canal de voz da pessoa que vai seguir e use /seguir com a Coleira ligada.');
       }
       subscribers.add(interaction.user.id);
-      return await answer('Acompanhamento autorizado. Use /parar, saia ou troque de canal para cancelar.');
+      return await answer('Autorizado a acompanhar. /parar, sair ou trocar de canal cancela imediatamente.');
     }
   } catch (error) {
     console.error('Erro em comando:', error);
@@ -103,13 +156,13 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   if (newState.guild.id !== GUILD_ID) return;
-  if (newState.id === OWNER_ID) {
+  if (leaderId && newState.id === leaderId) {
     const from = oldState.channelId, to = newState.channelId;
-    ownerChannelId = to;
+    leaderChannelId = to;
     if (!to) { subscribers.clear(); return; }
     if (!enabled || !from || from === to) return;
     for (const id of [...subscribers]) {
-      if (!enabled || ownerChannelId !== to) break;
+      if (!enabled || leaderChannelId !== to || id !== followerId) break;
       try {
         const member = await newState.guild.members.fetch(id);
         if (!shouldFollow(enabled, subscribers.has(id), from, to, member.voice.channelId)) {
@@ -125,8 +178,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     }
     return;
   }
-  if (subscribers.has(newState.id) &&
-      optedOut(oldState.channelId, newState.channelId, ownerChannelId)) {
+  if (newState.id === followerId && subscribers.has(newState.id) &&
+      optedOut(oldState.channelId, newState.channelId, leaderChannelId)) {
     subscribers.delete(newState.id);
     console.log('Opt-out por troca de canal: ' + newState.id);
   }
@@ -166,18 +219,24 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/status') {
     return respond(res, 200, snapshot());
   }
-  if (req.method === 'POST' && req.url === '/toggle') {
+  if (req.method === 'POST' && (req.url === '/toggle' || req.url === '/pair')) {
     let data = '';
     req.on('data', chunk => {
       data += chunk;
       if (data.length > 2048) req.destroy();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const body = JSON.parse(data);
-        if (typeof body.active !== 'boolean') throw Error('active invalido');
-        respond(res, 200, activate(body.active));
-      } catch { respond(res, 400, {error:'JSON invalido.'}); }
+        if (req.url === '/toggle') {
+          if (typeof body.active !== 'boolean') throw new Error('Valor de ativacao invalido.');
+          return respond(res, 200, activate(body.active));
+        }
+        const result = await configurePair(body.followerId,body.leaderId);
+        return respond(res, 200, result);
+      } catch (error) {
+        return respond(res, 400, {error:error.message || 'Configuracao invalida.'});
+      }
     });
     return;
   }
