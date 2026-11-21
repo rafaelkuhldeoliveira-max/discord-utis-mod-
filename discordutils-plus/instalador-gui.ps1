@@ -189,7 +189,7 @@ function Get-PluginFromRepo {
     $base = "https://raw.githubusercontent.com/$Repo/$Branch/discordutils-global"
     $expectedHashes = @{
         'inject.js' = '28D5541B9E9C770046B0FE32007EB037018740D71B75AC6FC6C8CE0E260B259E'
-        'renderer.js' = '9FB497E2BA6C06EC02C5648A0349D68B40F324501A3FCE0CB4DE8CD0D729B2D5'
+        'renderer.js' = 'CE774BEABF3BF82D987242988F598B420283ACD7526BAFF26F48CCD0C1D42CAB'
     }
     foreach ($f in @('inject.js', 'renderer.js')) {
         Write-Log "Baixando $f do GitHub..."
