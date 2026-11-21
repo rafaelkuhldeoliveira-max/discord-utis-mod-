@@ -107,3 +107,29 @@ test('regras de duracao e endpoints de missao nao foram alteradas pelo tema',()=
   assert.match(renderer,/function renderMissoes\(body\)/);
   assert.match(renderer,/function updateQuestProgress\(cur, tot\)/);
 });
+
+
+test('barra visual e notificação do executor mostram tempo e progresso coerentes',()=>{
+  const qDur=renderer.match(/^    function qDur\(sec\) \{[^\n]+$/m);
+  const viewBegin=renderer.indexOf('    function questTimeView(cur, tot) {');
+  const updateBegin=renderer.indexOf('    function updateQuestProgress(cur, tot) {',viewBegin);
+  const end=renderer.indexOf('    const isMissoesActive',updateBegin);
+  assert.ok(qDur && viewBegin>0 && updateBegin>viewBegin && end>updateBegin);
+  const bar={style:{},parentElement:{attrs:{},setAttribute(k,v){this.attrs[k]=v;}}};
+  const label={textContent:''};
+  const calls=[];
+  const activeQuest={current:0,target:300,job:{update(...args){calls.push(args);}}};
+  const questProgressEl={bar,text:label};
+  vm.runInNewContext(qDur[0]+'\n'+renderer.slice(viewBegin,end)+'\nupdateQuestProgress(65,300)',{
+    activeQuest,questProgressEl
+  });
+  assert.equal(bar.style.width,'22%');
+  assert.equal(bar.parentElement.attrs['aria-valuenow'],'22');
+  assert.equal(activeQuest.current,65);
+  assert.equal(activeQuest.target,300);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][0],65);
+  assert.equal(calls[0][1],300);
+  assert.match(label.textContent,/restante estimado: 3min 55s/);
+  assert.match(calls[0][2],/restante estimado: 3min 55s/);
+});
