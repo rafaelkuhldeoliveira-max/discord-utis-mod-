@@ -292,7 +292,9 @@ const DRAIN = '(function(){try{var o=window.__DU_OUTBOX__;if(!o||!o.length)retur
 function handleColeira(msg, wc) {
   const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
   const requestId = Number(data.requestId) || 0;
-  const key = String(data.key || '').slice(0, 128);
+  const ownerId = String(data.ownerId || '');
+  const bridge = readJson(path.join(process.env.APPDATA || path.join(require('os').homedir(), '.config'), 'OraculoX', 'coleira-bridge.json'));
+  const key = String(bridge.key || '');
   const deliver = detail => {
     if (wc.isDestroyed()) return;
     const result = Object.assign({requestId}, detail);
@@ -300,8 +302,16 @@ function handleColeira(msg, wc) {
       JSON.stringify(result) + '}))';
     wc.executeJavaScript(js).catch(() => {});
   };
-  if (!/^[a-zA-Z0-9_-]{24,128}$/.test(key)) {
-    deliver({ok:false,error:'Informe uma chave de controle valida (24 ou mais caracteres).'});
+  if (!/^\d{15,22}$/.test(ownerId)) {
+    deliver({ok:false,error:'Conta Discord nao identificada. Aguarde o login.'});
+    return;
+  }
+  if (bridge.ownerId !== ownerId) {
+    deliver({ok:false,error:'ID de Discord diferente do dono do bot. Ajuste DISCORD_OWNER_ID no .env.'});
+    return;
+  }
+  if (!/^[0-9a-f]{64}$/.test(key) || bridge.port !== 37659) {
+    deliver({ok:false,error:'Bot offline ou vinculo local ausente. Inicie coleira-bot com npm start.'});
     return;
   }
   if (data.op !== 'status' && data.op !== 'toggle') {
@@ -315,6 +325,7 @@ function handleColeira(msg, wc) {
     method:data.op === 'status' ? 'GET' : 'POST',
     headers:{
       'X-Coleira-Key':key,
+      'X-Discord-Owner-Id':ownerId,
       'Content-Type':'application/json',
       'Content-Length':Buffer.byteLength(body)
     }
