@@ -14,7 +14,7 @@ Este plugin altera apenas chamadas de mute/deafen **locais**. Nao garante que ou
 2. Copie a pasta \`oraculoXFakeVoice\` deste repositorio para \`Vencord/src/userplugins/oraculoXFakeVoice\`.
 3. No diretorio do Vencord, rode \`pnpm install --frozen-lockfile\`, depois \`pnpm build\` e \`pnpm inject\`.
 4. Reinicie totalmente o Discord e ative **Fake Voice Options** nas configuracoes de plugins.
-5. Alterar \`fakeMute\` ou \`fakeDeafen\` mostra o indicador de reinicio nativo do Vencord (\`restartNeeded: true\`).
+5. Depois que o plugin estiver carregado e a patch instalada, alterar \`fakeMute\` ou \`fakeDeafen\` e imediato, sem pedido de reinicio. A ativacao inicial de um plugin com patches pode exigir um reinicio do Discord.
 
 Documentacao atual: https://docs.vencord.dev/installing/custom-plugins/ e https://docs.vencord.dev/plugins/
 
