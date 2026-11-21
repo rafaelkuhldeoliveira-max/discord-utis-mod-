@@ -138,3 +138,29 @@ test('barra visual e notificação do executor mostram tempo e progresso coerent
   assert.match(label.textContent,/restante estimado: 3min 55s/);
   assert.match(calls[0][2],/restante estimado: 3min 55s/);
 });
+
+test('Coleira exibe dois campos para escolha manual de participante e lider',()=>{
+  assert.match(renderer,/ID de quem sera acompanhado \(participante\)/);
+  assert.match(renderer,/ID da pessoa que vai ser seguida \(lider\)/);
+  assert.match(renderer,/send\('pair',\{followerId,leaderId\}\)/);
+  assert.match(renderer,/Salvar vinculo dos dois IDs/);
+  assert.match(renderer,/Ninguem e movido sem isso/);
+  assert.doesNotMatch(renderer,/coleiraSessionKey|COLEIRA_CONTROL_KEY/);
+});
+test('ponte suporta configurar par e mantem autenticação do administrador',()=>{
+  assert.match(bridge,/const endpoint = data\.op === 'status' \? '\/status' : data\.op === 'toggle' \? '\/toggle' : '\/pair'/);
+  assert.match(bridge,/path:endpoint/);
+  assert.match(bridge,/followerId:String\(data\.followerId \|\| ''\), leaderId:String\(data\.leaderId \|\| ''\)/);
+  assert.doesNotMatch(bridge,/const path = data\.op/);
+  assert.match(bot,/req\.headers\['x-discord-owner-id'\] !== OWNER_ID/);
+  assert.match(bot,/req\.url === '\/pair'/);
+  assert.match(bot,/configurePair\(body\.followerId,body\.leaderId\)/);
+});
+test('Coleira salva IDs no disco mas nunca reutiliza autorizacao anterior ao troca-los',()=>{
+  assert.match(bot,/const PAIR_FILE = path\.join\(BRIDGE_DIR, 'coleira-pair\.json'\)/);
+  assert.match(bot,/function persistPair\(\)/);
+  assert.match(bot,/enabled = false;\s*subscribers\.clear\(\);\s*followerId = nextFollowerId/);
+  assert.match(bot,/mayEnrollPair\(enabled, interaction\.user\.id, followerId/);
+  assert.match(bot,/shouldFollowPair\(enabled, id, followerId, subscribers\.has\(id\)/);
+  assert.match(bot,/interaction\.user\.id !== followerId/);
+});
