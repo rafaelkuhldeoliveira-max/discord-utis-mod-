@@ -188,8 +188,8 @@ function Get-PluginFromRepo {
     # Baixa a versao global completa para preservar Missoes, Orbs e demais funcoes.
     $base = "https://raw.githubusercontent.com/$Repo/$Branch/discordutils-global"
     $expectedHashes = @{
-        'inject.js' = '28D5541B9E9C770046B0FE32007EB037018740D71B75AC6FC6C8CE0E260B259E'
-        'renderer.js' = 'C6D8E6DFAAFD690A8186A51E89B8CE37625BEC0C4667F29BE9E6C08AE6C4E334'
+        'inject.js' = '2D82206851985F78091199105443635C9476DB47D9D12091FBEA9210ED34054C'
+        'renderer.js' = '86BD2A76257D14DAA6C9CB039DE058467AA41122D89B62BCCB44A5771A941971'
     }
     foreach ($f in @('inject.js', 'renderer.js')) {
         Write-Log "Baixando $f do GitHub..."
