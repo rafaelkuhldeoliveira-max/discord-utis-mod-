@@ -269,10 +269,10 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-panel .du-ib:hover{color:#fff;background:rgba(255,255,255,.06)}
         #du-panel .du-ib.red:hover{color:#fff;background:var(--red);border-color:var(--red)}
         #du-panel .du-ib.warn:hover{color:#fff;background:var(--warn);border-color:var(--warn)}
-        #du-panel .du-ib.on{color:var(--acc);border-color:rgba(139,92,246,.5)}
+        #du-panel .du-ib.on{color:var(--acc);border-color:rgba(197,22,57,.5)}
         #du-panel .owner{font-size:9px;font-weight:700;color:#000;background:var(--warn);padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle}
 
-        #du-panel .pf-banner{height:100px;margin:-14px -14px 0;background:linear-gradient(135deg,#5865F2,#8b5cf6);background-size:cover;background-position:center}
+        #du-panel .pf-banner{height:100px;margin:-14px -14px 0;background:linear-gradient(135deg,#c51639,#c51639);background-size:cover;background-position:center}
         #du-panel .pf-av{width:80px;height:80px;border-radius:50%;border:5px solid var(--bg);background:var(--bg3);overflow:hidden;margin:-42px 0 0 2px;position:relative;z-index:1}
         #du-panel .pf-av img{width:100%;height:100%;object-fit:cover}
         #du-panel .pf-nm{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:19px;font-weight:800;color:#fff;margin-top:10px}
@@ -305,7 +305,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-panel .du-duo .du-tg .tgt b{white-space:normal;line-height:1.25;font-size:12.5px}
 
         #du-toasts{position:fixed;right:18px;bottom:18px;z-index:2147483040;display:flex;flex-direction:column;gap:10px;align-items:flex-end;width:min(370px,calc(100vw - 36px));pointer-events:none;font-family:var(--font-primary,"gg sans",system-ui,sans-serif)}
-        .du-toast{--tc:#8b5cf6;--tcb:rgba(139,92,246,.18);position:relative;box-sizing:border-box;pointer-events:auto;display:flex;align-items:flex-start;gap:12px;width:100%;padding:14px 14px 15px;overflow:hidden;border-radius:14px;border:1px solid rgba(255,255,255,.08);border-left:3px solid var(--tc);background:linear-gradient(150deg,#17171f,#0d0d12);box-shadow:0 18px 44px rgba(0,0,0,.6);color:#ececed;opacity:0;transform:translateX(20px) scale(.97);transition:opacity .22s cubic-bezier(.2,.9,.25,1),transform .22s cubic-bezier(.2,.9,.25,1)}
+        .du-toast{--tc:#c51639;--tcb:rgba(197,22,57,.18);position:relative;box-sizing:border-box;pointer-events:auto;display:flex;align-items:flex-start;gap:12px;width:100%;padding:14px 14px 15px;overflow:hidden;border-radius:14px;border:1px solid rgba(255,255,255,.08);border-left:3px solid var(--tc);background:linear-gradient(150deg,#170b12,#0b070c);box-shadow:0 18px 44px rgba(0,0,0,.6);color:#ececed;opacity:0;transform:translateX(20px) scale(.97);transition:opacity .22s cubic-bezier(.2,.9,.25,1),transform .22s cubic-bezier(.2,.9,.25,1)}
         .du-toast.in{opacity:1;transform:none}
         .du-toast.out{opacity:0;transform:translateX(20px) scale(.97)}
         .du-toast .ti{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:11px;background:var(--tcb);color:var(--tc)}
@@ -320,14 +320,14 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-jobs{position:fixed;right:18px;top:76px;z-index:2147483030;display:none;flex-direction:column;gap:10px;width:min(320px,calc(100vw - 36px));max-height:60vh;overflow-y:auto;font-family:var(--font-primary,"gg sans",system-ui,sans-serif)}
         #du-jobs::-webkit-scrollbar{width:0}
         #du-jobs.on{display:flex}
-        .du-job{box-sizing:border-box;padding:12px 13px 11px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(150deg,#17171f,#0d0d12);box-shadow:0 16px 40px rgba(0,0,0,.55);color:#ececed}
+        .du-job{box-sizing:border-box;padding:12px 13px 11px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(150deg,#170b12,#0b070c);box-shadow:0 16px 40px rgba(0,0,0,.55);color:#ececed}
         .du-job .jh{display:flex;align-items:center;gap:9px}
-        .du-job .ji{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(139,92,246,.18);color:#a78bfa}
+        .du-job .ji{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(197,22,57,.18);color:#ff6586}
         .du-job .jt{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .du-job .jx{flex:0 0 auto;display:flex;padding:4px;border:none;background:none;color:#6f6f7d;cursor:pointer;border-radius:6px}
         .du-job .jx:hover{color:#fff;background:rgba(237,66,69,.85)}
-        .du-job .jbar{height:6px;margin:10px 0 7px;border-radius:4px;background:#22222c;overflow:hidden}
-        .du-job .jfill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#5865F2,#8b5cf6);transition:width .25s}
+        .du-job .jbar{height:6px;margin:10px 0 7px;border-radius:4px;background:#32111f;overflow:hidden}
+        .du-job .jfill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#c51639,#c51639);transition:width .25s}
         .du-job .jfill.ind{width:38%;animation:duind 1.1s infinite ease-in-out}
         @keyframes duind{0%{margin-left:-38%}100%{margin-left:100%}}
         .du-job .js{font-size:11px;color:#9a9aa8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -336,18 +336,18 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-modalbg.on{opacity:1}
         #du-modal{width:340px;max-width:90vw;background:#0b0b0f;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.7);padding:22px 20px;text-align:center;font-family:var(--font-primary,"gg sans",system-ui,sans-serif);transform:scale(.96);transition:transform .12s}
         #du-modalbg.on #du-modal{transform:scale(1)}
-        #du-modal .mi{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;background:rgba(139,92,246,.14);color:#8b5cf6}
+        #du-modal .mi{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;background:rgba(197,22,57,.14);color:#c51639}
         #du-modal .mi.danger{background:rgba(237,66,69,.14);color:#ff6b6e}
         #du-modal .mt{font-size:17px;font-weight:800;color:#fff;margin-bottom:7px}
         #du-modal .mm{font-size:13px;color:#c9c9d1;line-height:1.55}
         #du-modal .mchk{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:16px;font-size:12.5px;color:#c9c9d1;cursor:pointer}
-        #du-modal .mchk input{width:16px;height:16px;accent-color:#8b5cf6}
+        #du-modal .mchk input{width:16px;height:16px;accent-color:#c51639}
         #du-modal .macts{display:flex;gap:10px;margin-top:20px}
         #du-modal .du-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;margin:0;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:#1b1b23;color:#ececed;cursor:pointer;font-size:13.5px;font-weight:600;transition:background .12s,border-color .12s}
         #du-modal .du-btn:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16)}
         #du-modal .du-btn:disabled{opacity:.4;cursor:default}
-        #du-modal .du-btn.acc{background:#8b5cf6;border-color:#8b5cf6;color:#fff}
-        #du-modal .du-btn.acc:hover{background:#7c46ec}
+        #du-modal .du-btn.acc{background:#c51639;border-color:#c51639;color:#fff}
+        #du-modal .du-btn.acc:hover{background:#e1244c}
         #du-modal .du-btn.red{background:#ed4245;border-color:#ed4245;color:#fff}
         #du-modal .du-btn.red:hover{background:#c93438}
 
@@ -364,20 +364,20 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-panel .du-pills{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:12px}
         #du-panel .du-pill{font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:var(--bg2);color:var(--mut);cursor:pointer;white-space:nowrap}
         #du-panel .du-pill:hover{color:var(--txt)}
-        #du-panel .du-pill.on{color:#fff;background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.45)}
-        #du-panel .q-card{display:flex;gap:11px;padding:11px;margin:6px 0;background:var(--bg2);border:1px solid var(--line);border-radius:12px}
+        #du-panel .du-pill.on{color:#fff;background:rgba(197,22,57,.18);border-color:rgba(197,22,57,.45)}
+        #du-panel .q-card{display:flex;gap:11px;padding:11px;margin:6px 0;background:linear-gradient(135deg,#1b0c14,#10080d);border:1px solid rgba(255,69,106,.23);border-radius:12px}
         #du-panel .q-thumb{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto}
         #du-panel .q-body{flex:1;min-width:0}
         #du-panel .q-top{display:flex;align-items:center;gap:8px}
         #du-panel .q-name{flex:1;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         #du-panel .q-meta{font-size:11px;color:var(--mut);margin-top:3px}
-        #du-panel .q-reward{display:inline-block;font-size:11px;font-weight:600;color:#ffd9a0;background:rgba(224,145,58,.13);border:1px solid rgba(224,145,58,.3);padding:1px 8px;border-radius:20px;margin-top:6px}
+        #du-panel .q-reward{display:inline-block;font-size:11px;font-weight:700;color:#ffb1c3;background:rgba(197,22,57,.17);border:1px solid rgba(255,69,106,.35);padding:1px 8px;border-radius:20px;margin-top:6px}
         #du-panel .q-badge{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;flex:0 0 auto}
-        #du-panel .q-badge.available{color:#c4b5fd;background:rgba(139,92,246,.16)}
+        #du-panel .q-badge.available{color:#ffa9bd;background:rgba(197,22,57,.16)}
         #du-panel .q-badge.pending{color:#f0b674;background:rgba(224,145,58,.16)}
         #du-panel .q-badge.done{color:#7ee0a3;background:rgba(59,165,93,.16)}
         #du-panel .q-badge.expired{color:#ff8f91;background:rgba(237,66,69,.16)}
-        #du-panel .q-badge.reward{color:#ffd9a0;background:rgba(224,145,58,.16)}
+        #du-panel .q-badge.reward{color:#ffb1c3;background:rgba(197,22,57,.17)}
         #du-panel .q-do{margin-top:9px;padding:7px}
 `;
       document.head.appendChild(s);
@@ -386,7 +386,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
     const TOAST_KIND = {
       ok: { c: '#3ba55d', b: 'rgba(59,165,93,.18)', i: 'check', t: 'Tudo certo' },
       err: { c: '#ed4245', b: 'rgba(237,66,69,.18)', i: 'alert', t: 'Erro' },
-      inf: { c: '#5865F2', b: 'rgba(88,101,242,.18)', i: 'info', t: 'Aviso' },
+      inf: { c: '#c51639', b: 'rgba(197,22,57,.18)', i: 'info', t: 'Aviso' },
       warn: { c: '#e0913a', b: 'rgba(224,145,58,.18)', i: 'alert', t: 'Atenção' },
     };
     let toastRoot = null;
@@ -967,9 +967,37 @@ if (window.__DiscordUtilsLoaded) {  } else {
     const questName = (q) => (q.config && q.config.messages && q.config.messages.quest_name) || 'Missão';
 
     function qSortKey(q) { const pick = qPick(q); const vid = pick && pick.type.startsWith('WATCH_') ? 0 : 1; const r = q.config && q.config.rewards_config && q.config.rewards_config.rewards && q.config.rewards_config.rewards[0]; const orbs = r && r.type === 4 ? 0 : 1; return vid * 2 + orbs; }
+    // Somente apresentacao: segundos informados pelo progresso da missao.
+    // Nao altera nem acelera o tempo exigido pelo Discord.
+    function questTimeView(cur, tot) {
+      const target = Math.max(0, Math.ceil(Number(tot) || 0));
+      const elapsed = Math.min(target, Math.max(0, Math.floor(Number(cur) || 0)));
+      const remaining = Math.max(0, target - elapsed);
+      const percent = target > 0 ? Math.min(100, Math.max(0, Math.round(elapsed / target * 100))) : 0;
+      return {
+        elapsed, target, remaining, percent,
+        label: 'Progresso: ' + qDur(elapsed) + ' / ' + qDur(target) +
+          ' · restante estimado: ' + qDur(remaining)
+      };
+    }
     function updateQuestProgress(cur, tot) {
-      if (activeQuest) { activeQuest.current = cur; activeQuest.target = tot; if (activeQuest.job) activeQuest.job.update(cur, tot, `${cur} / ${tot}s`); }
-      if (questProgressEl) { const pct = tot > 0 ? Math.min(100, Math.round(cur / tot * 100)) : 0; questProgressEl.bar.style.width = pct + '%'; questProgressEl.text.textContent = `${cur} / ${tot}s`; }
+      const time = questTimeView(cur, tot);
+      if (activeQuest) {
+        activeQuest.current = time.elapsed;
+        activeQuest.target = time.target;
+        if (activeQuest.job) activeQuest.job.update(time.elapsed, time.target, time.label);
+      }
+      if (questProgressEl) {
+        questProgressEl.bar.style.width = time.percent + '%';
+        questProgressEl.text.textContent = time.label;
+        if (questProgressEl.bar.parentElement) {
+          questProgressEl.bar.parentElement.setAttribute('role', 'progressbar');
+          questProgressEl.bar.parentElement.setAttribute('aria-label', 'Progresso da missao');
+          questProgressEl.bar.parentElement.setAttribute('aria-valuemin', '0');
+          questProgressEl.bar.parentElement.setAttribute('aria-valuemax', '100');
+          questProgressEl.bar.parentElement.setAttribute('aria-valuenow', String(time.percent));
+        }
+      }
     }
     const isMissoesActive = () => panel && panel.classList.contains('open') && tabs[activeTab] && tabs[activeTab].name === 'Missões';
     function refreshMissoes() { if (isMissoesActive()) renderMissoes(panelBody); }
@@ -1096,8 +1124,8 @@ if (window.__DiscordUtilsLoaded) {  } else {
       const wrap = el('div', { style: 'padding:28px 8px;text-align:center' });
       wrap.innerHTML = `<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:4px">Fazendo missão</div>
         <div style="font-size:12px;color:var(--mut);margin-bottom:18px">${esc(activeQuest.name)}</div>
-        <div style="width:100%;height:8px;border-radius:5px;background:var(--bg3);overflow:hidden;margin-bottom:12px"><div class="qp-bar" style="height:100%;width:0;background:linear-gradient(90deg,#5865F2,#8b5cf6);transition:width .2s"></div></div>
-        <div class="qp-text" style="font-size:13px;color:#c9c9d1;margin-bottom:18px">…</div>`;
+        <div class="qp-track" style="width:100%;height:9px;border-radius:6px;background:#290e19;overflow:hidden;margin-bottom:12px;box-shadow:inset 0 0 0 1px rgba(255,69,106,.24)"><div class="qp-bar" style="height:100%;width:0;background:linear-gradient(90deg,#ac1034,#ff456a);transition:width .2s"></div></div>
+        <div class="qp-text" style="font-size:12px;color:#ffbecd;margin-bottom:18px;font-variant-numeric:tabular-nums">Calculando tempo da missão…</div>`;
       const cancel = el('button', { className: 'du-btn red', style: 'width:auto;margin:0 auto;padding:9px 26px' }, 'Cancelar');
       cancel.onclick = () => { questCancel = true; };
       wrap.appendChild(cancel);
