@@ -314,14 +314,18 @@ function handleColeira(msg, wc) {
     deliver({ok:false,error:'Bot offline ou vinculo local ausente. Inicie coleira-bot com npm start.'});
     return;
   }
-  if (data.op !== 'status' && data.op !== 'toggle') {
+  if (!['status','toggle','pair'].includes(data.op)) {
     deliver({ok:false,error:'Acao desconhecida.'});
     return;
   }
-  const path = data.op === 'status' ? '/status' : '/toggle';
-  const body = data.op === 'toggle' ? JSON.stringify({active:!!data.active}) : '';
+  // 'endpoint' evita sombrear o modulo path usado para ler o segredo local.
+  const endpoint = data.op === 'status' ? '/status' : data.op === 'toggle' ? '/toggle' : '/pair';
+  const body = data.op === 'toggle' ? JSON.stringify({active:!!data.active}) :
+    data.op === 'pair' ? JSON.stringify({
+      followerId:String(data.followerId || ''), leaderId:String(data.leaderId || '')
+    }) : '';
   const request = http.request({
-    hostname:'127.0.0.1', port:37659, path,
+    hostname:'127.0.0.1', port:37659, path:endpoint,
     method:data.op === 'status' ? 'GET' : 'POST',
     headers:{
       'X-Coleira-Key':key,
