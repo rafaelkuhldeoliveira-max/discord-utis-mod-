@@ -1797,69 +1797,101 @@ if (window.__DiscordUtilsLoaded) {  } else {
 
     // Coleira: apenas controle do bot oficial local. Nenhum token de usuario
     // ou credencial do bot e exposto na pagina do Discord.
-    // Vinculo de Coleira pelo ID real da conta logada.
-    // Credencial temporaria local fica apenas entre bot e processo nativo.
+    // Painel da Coleira: os dois IDs sao informados pelo operador.
+    // A autorizacao /seguir vem da propria pessoa participante.
     let coleiraRequestNumber = 0;
     let coleiraListener = null;
     function renderColeira(body) {
       duVoiceStyle();
-      body.appendChild(el('div', {className:'du-sec'}, 'ORACULO X - Coleira por ID'));
-      body.appendChild(el('div', {className:'du-hint'},
-        'O bot oficial usa seu ID do Discord para reconhecer o dono. Nenhuma chave ou token precisa ser inserido no painel. Participantes usam /seguir, e podem parar com /parar ou sair da chamada.'));
-      const id = String(currentUser()?.id || '');
-      const idLine = el('div',{className:'du-mod-preview'});
-      idLine.textContent = /^\d{15,22}$/.test(id) ? 'ID da sua conta: ' + id : 'ID indisponivel. Aguarde seu Discord carregar.';
-      body.appendChild(idLine);
+      body.replaceChildren();
+      body.appendChild(el('div',{className:'du-sec'},'ORACULO X - Coleira por dois IDs'));
+      body.appendChild(el('div',{className:'du-hint'},
+        'Preencha manualmente o ID de quem sera acompanhado e o ID de quem ele vai seguir. O participante deve autorizar com /seguir e pode cancelar a qualquer momento com /parar ou saindo da chamada.'));
+      const adminId = String(currentUser()?.id || '');
+      const admin = el('div',{className:'du-mod-preview'});
+      admin.textContent = /^\d{15,22}$/.test(adminId) ?
+        'Conta administradora logada: '+adminId :
+        'Conta administradora ainda nao identificada pelo Discord.';
+      body.appendChild(admin);
+
+      const followerLabel = el('label',{className:'du-sec',textContent:'1. ID de quem sera acompanhado (participante)'});
+      const followerInput = el('input',{
+        className:'du-input',type:'text',inputMode:'numeric',maxLength:22,
+        placeholder:'Cole o ID de quem sera movido'
+      });
+      followerInput.setAttribute('aria-label','ID do participante que autoriza o acompanhamento');
+      followerLabel.appendChild(followerInput);
+      body.appendChild(followerLabel);
+
+      const leaderLabel = el('label',{className:'du-sec',textContent:'2. ID da pessoa que vai ser seguida (lider)'});
+      const leaderInput = el('input',{
+        className:'du-input',type:'text',inputMode:'numeric',maxLength:22,
+        placeholder:'Cole o ID de quem o participante vai seguir'
+      });
+      leaderInput.setAttribute('aria-label','ID da pessoa seguida');
+      leaderLabel.appendChild(leaderInput);
+      body.appendChild(leaderLabel);
+
       const status = el('div',{className:'du-mod-preview'});
-      status.textContent = 'Bot: use Conectar / Atualizar para consultar a Coleira local.';
+      status.textContent = 'Coleira offline ou nao consultada. Inicie o bot oficial e clique em Conectar.';
       body.appendChild(status);
       const members = el('div',{className:'du-hint'});
-      members.textContent = 'Participantes autorizados: nenhum listado.';
+      members.textContent = 'Autorizacao: pendente. O participante devera usar /seguir.';
       body.appendChild(members);
-      const latest = {id:0};
-      const send = (op,active) => {
-        const currentId = String(currentUser()?.id || '');
-        if (!/^\d{15,22}$/.test(currentId)) {
-          status.textContent = 'Discord nao identificou sua conta. Tente novamente apos carregar.';
-          return;
-        }
-        latest.id = ++coleiraRequestNumber;
-        status.textContent = 'Verificando bot local para ID ' + currentId + '...';
-        sendNative('coleira',{op,active,ownerId:currentId,requestId:latest.id});
+      const latest={id:0,op:''};
+      const validId=id=>/^\d{15,22}$/.test(id);
+      const send=(op,payload={})=>{
+        const id=String(currentUser()?.id||'');
+        if(!validId(id)){status.textContent='Erro: conta Discord nao identificada.';return;}
+        latest.id=++coleiraRequestNumber;latest.op=op;
+        status.textContent=op==='pair'?'Validando os dois IDs no servidor Discord...':
+          'Consultando Coleira local...';
+        sendNative('coleira',{op,ownerId:id,requestId:latest.id,...payload});
       };
-      const row = el('div',{style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px'});
-      const connect = el('button',{className:'du-btn',style:'flex:1;min-width:115px'},'Conectar / Atualizar');
-      connect.onclick = () => send('status');
-      const on = el('button',{className:'du-btn acc',style:'flex:1;min-width:85px'},'Ligar');
-      on.onclick = () => send('toggle',true);
-      const off = el('button',{className:'du-btn red',style:'flex:1;min-width:85px'},'Desligar');
-      off.onclick = () => send('toggle',false);
-      row.append(connect,on,off);
-      body.appendChild(row);
-      body.appendChild(el('p',{className:'du-hint',style:'margin-top:13px'},
-        'Configure DISCORD_OWNER_ID com o mesmo ID mostrado acima no .env do bot e inicie npm start na pasta coleira-bot. O token do bot oficial fica somente no .env. Nao e necessario reiniciar o Discord para ligar/desligar a Coleira.'));
+
+      const row = el('div',{style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px'});
+      const save = el('button',{className:'du-btn acc',style:'flex:1 1 100%'},'Salvar vinculo dos dois IDs');
+      save.onclick=()=>{
+        const followerId=followerInput.value.trim(),leaderId=leaderInput.value.trim();
+        if(!validId(followerId)||!validId(leaderId)||followerId===leaderId){
+          status.textContent='Preencha dois IDs diferentes, de 15 a 22 digitos, pertencentes ao mesmo servidor.';
+          return;
+        }
+        send('pair',{followerId,leaderId});
+      };
+      const connect=el('button',{className:'du-btn',style:'flex:1;min-width:100px'},'Conectar / Atualizar');
+      connect.onclick=()=>send('status');
+      const on=el('button',{className:'du-btn acc',style:'flex:1;min-width:75px'},'Ligar');
+      on.onclick=()=>send('toggle',{active:true});
+      const off=el('button',{className:'du-btn red',style:'flex:1;min-width:75px'},'Desligar');
+      off.onclick=()=>send('toggle',{active:false});
+      row.append(save,connect,on,off);body.appendChild(row);
+
+      body.appendChild(el('p',{className:'du-hint',style:'margin-top:12px'},
+        'O vinculo salva apenas os IDs no computador. Ao mudar qualquer ID, a Coleira desliga e a autorizacao anterior e cancelada. A pessoa configurada entra na mesma chamada do lider e digita /seguir. Ninguem e movido sem isso.'));
       body.appendChild(el('p',{className:'du-hint'},
-        'No servidor: /coleira ligar ou desligar (somente dono), /seguir (autorizar), /parar (cancelar). Ninguem sera puxado de volta depois de sair.'));
-      if (coleiraListener) window.removeEventListener('du-coleira-response',coleiraListener);
-      coleiraListener = event => {
-        if (!body.isConnected) return;
-        const detail = event.detail || {};
-        if (detail.requestId !== latest.id) return;
-        if (!detail.ok) {
-          status.textContent = 'Erro: ' + (detail.error || 'Falha ao conectar');
+        'O bot oficial requer o token do bot, ID do servidor e ID da conta administradora no arquivo coleira-bot/.env. Nunca informe token no painel.'));
+
+      if(coleiraListener)window.removeEventListener('du-coleira-response',coleiraListener);
+      coleiraListener=event=>{
+        if(!body.isConnected)return;
+        const detail=event.detail||{};
+        if(detail.requestId!==latest.id)return;
+        if(!detail.ok){status.textContent='Erro: '+(detail.error||'Falha ao acessar bot');return;}
+        const info=detail.data||{};
+        if(String(info.ownerId||'')!==String(currentUser()?.id||'')){
+          status.textContent='Erro: a conta administradora logada nao corresponde ao ID permitido pelo bot.';
           return;
         }
-        const info = detail.data || {};
-        if (String(info.ownerId || '') !== String(currentUser()?.id || '')) {
-          status.textContent = 'Erro: o ID autorizado no bot nao coincide com a conta do Discord.';
-          return;
-        }
-        status.textContent = 'Bot: ' + (info.ready ? 'conectado' : 'iniciando') +
-          ' | Coleira: ' + (info.active ? 'LIGADA' : 'DESLIGADA') +
-          ' | ID: ' + info.ownerId;
-        const list = Array.isArray(info.subscribers) ? info.subscribers : [];
-        members.textContent = 'Participantes autorizados (' + list.length + '): ' +
-          (list.length ? list.join(', ') : 'nenhum. Use /seguir.');
+        if(validId(info.followerId||''))followerInput.value=info.followerId;
+        if(validId(info.leaderId||''))leaderInput.value=info.leaderId;
+        const paired=validId(info.followerId||'')&&validId(info.leaderId||'');
+        status.textContent='Bot: '+(info.ready?'conectado':'iniciando')+
+          ' | Coleira: '+(info.active?'LIGADA':'DESLIGADA')+
+          ' | Vinculo: '+(paired?'configurado':'aguardando dois IDs');
+        members.textContent=info.authorized?
+          'O participante autorizou com /seguir e esta habilitado a acompanhar.':
+          'Participante nao autorizado. Ele deve entrar na chamada do lider e usar /seguir.';
       };
       window.addEventListener('du-coleira-response',coleiraListener);
     }
