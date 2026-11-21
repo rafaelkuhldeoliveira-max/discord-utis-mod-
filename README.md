@@ -1,3 +1,28 @@
+# ORACULO X - DiscordUtils Mod (experimental)
+
+Tema preto e vermelho carmesim. O instalador grafico usa a base DiscordUtils e injeta o complemento de voz e a aba Coleira.
+
+- **Voz:** Fake Mute (botao pequeno), Fake Voice (botao maior), opcoes para mostrar/ocultar os botoes, atalhos F6/F7 e aviso pedindo para fechar/reabrir o Discord apos alteracoes. Os estados de voz escolhidos sao salvos por conta.
+- **Coleira:** bot oficial em `coleira-bot`, controlado pela aba Coleira do painel via ponte local autenticada. Apenas participantes que fizerem `/seguir` podem ser movidos junto com o dono, e podem cancelar a qualquer momento com `/parar`, ao sair ou ao trocar de canal.
+- **Vencord (opcional e separado):** `vencord-userplugin/oraculoXFakeVoice/index.ts`, com o import solicitado e `restartNeeded: true`. Requer Vencord compilado a partir do fonte, e nao e instalado pelo PowerShell.
+- **Instalador:** `instalar-global.ps1`, com menu Instalar / Atualizar, Reparar e Desinstalar e verificacao SHA-256 do complemento e da ponte Coleira.
+
+## Como usar
+
+Leia o codigo de `instalar-global.ps1` antes de executa-lo. Abra o PowerShell e use:
+
+```powershell
+irm https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/instalar-global.ps1 | iex
+```
+
+No menu, clique em **Instalar / Atualizar**; feche completamente o Discord pela bandeja e reabra caso nao apareca **Oraculo X > Voz / Coleira**.
+
+A Coleira **nao e iniciada automaticamente** pelo instalador: configure o token do bot oficial em `coleira-bot/.env` a partir de `.env.example` e rode `npm install` e `npm start` na pasta `coleira-bot`. Mantenha `COLEIRA_PORT=37659`. Nunca cole o token da sua conta pessoal.
+
+O Fake Mute/Fake Voice dependem do comportamento interno e mutavel do Discord e **nao ha garantia de estado visivel para outras pessoas**. Nao foram testados em uma chamada real de Discord para Windows nesta sessao. O uso de mods nao oficiais pode contrariar as regras da plataforma. Os testes automatizados de sintaxe e consentimento estao definidos em `.github/workflows/oraculo-x-check.yml`, mas dependem do GitHub Actions estar habilitado.
+
+---
+
 # DiscordUtils+ — Fake Mute e Fake Voice
 
 **Mecanismo FakeMuteX integrado:** [mrcrossog/FakeMuteX](https://github.com/mrcrossog/FakeMuteX), versão 1.2.7 (MrCross). O interceptor `WebSocket.prototype.send` e a configuração de atalho foram adaptados para o renderer do DiscordUtils; o plugin BetterDiscord original não é instalado e nenhuma dependência `BdApi` é necessária.
