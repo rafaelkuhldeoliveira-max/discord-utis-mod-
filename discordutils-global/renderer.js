@@ -1636,6 +1636,15 @@ if (window.__DiscordUtilsLoaded) {  } else {
     function duVoiceStartControls() {
       duVoiceCapture();
       duVoiceHookGateway();
+      document.addEventListener('keydown', event => {
+        if (event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey ||
+            event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+        const key = event.code === 'F6' ? 'mute' : event.code === 'F7' ? 'voice' : null;
+        if (!key) return;
+        event.preventDefault(); event.stopPropagation();
+        duVoiceSet(key,!duVoiceMod[key]);
+        if (panel?.classList.contains('open') && tabs[activeTab]?.name === 'Mod') renderActiveTab();
+      },true);
       duVoiceStyle();
       duVoicePaintControls();
       if (!document.body || typeof MutationObserver === 'undefined') return;
@@ -1677,14 +1686,14 @@ if (window.__DiscordUtilsLoaded) {  } else {
         '#du-oraculo-voice-buttons button.on{background:#9f1634;color:white;border-color:#ff456a;box-shadow:0 0 10px rgba(219,27,71,.35)}',
         '#du-oraculo-voice-buttons button:focus-visible{outline:2px solid #ff456a;outline-offset:2px}',
         '#du-panel .du-mod-card{display:flex;align-items:center;gap:12px;margin:10px 0;padding:13px;background:var(--bg2);border:1px solid var(--line);border-radius:12px}',
-        '#du-panel .du-mod-symbol{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:rgba(139,92,246,.16);color:#c4b5fd;flex:none}',
+        '#du-panel .du-mod-symbol{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:rgba(197,22,57,.16);color:#ff6586;flex:none}',
         '#du-panel .du-mod-copy{flex:1;min-width:0}',
         '#du-panel .du-mod-name{font-size:13px;font-weight:700;color:#fff}',
         '#du-panel .du-mod-desc{font-size:11px;line-height:1.45;color:var(--mut);margin-top:4px}',
         '#du-panel .du-mod-toggle{width:21px;height:21px;accent-color:#d51d46;cursor:pointer;flex:none}',
         '#du-panel .du-mod-preview{padding:13px;margin-top:15px;border-radius:11px;border:1px solid var(--line);background:#101015}',
         '#du-panel .du-mod-preview-line{display:flex;align-items:center;gap:10px;font-size:12px}',
-        '#du-panel .du-mod-bubble{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#5865f2;font-weight:700}',
+        '#du-panel .du-mod-bubble{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#aa1638;font-weight:700}',
         '#du-panel .du-mod-icons{margin-left:auto;display:flex;align-items:center;gap:8px;color:#8c919d}',
         '#du-panel .du-mod-red{color:#f26d72}',
         '#du-panel .du-mod-state{margin:11px 0;color:var(--mut);font-size:11px;line-height:1.5}',
@@ -1754,7 +1763,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
           ok ? 'ok' : 'inf', 'Mod');
       };
       body.appendChild(sync);
-      body.appendChild(el('div', { className:'du-hint' }, 'Previa local nao significa estado visivel a outras pessoas. Este recurso depende do comportamento atual do Discord.'));
+      body.appendChild(el('div', { className:'du-hint' }, 'F6 ativa/desativa Fake Mute; F7 ativa/desativa Fake Voice. Sem reinicio em cada clique. A previa local nao garante visibilidade para outras pessoas.'));
       paint();
     }
 
