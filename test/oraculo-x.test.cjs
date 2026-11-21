@@ -109,6 +109,11 @@ test('regras de duracao e endpoints de missao nao foram alteradas pelo tema',()=
 });
 
 
+test('atalho do painel na barra lateral se chama Oraculo X',()=>{
+  assert.match(renderer, /<div class="du-lbl">Oraculo X<\/div>/);
+  assert.doesNotMatch(renderer, /<div class="du-lbl">Discord Utils<\/div>/);
+});
+
 test('barra visual e notificação do executor mostram tempo e progresso coerentes',()=>{
   const qDur=renderer.match(/^    function qDur\(sec\) \{[^\n]+$/m);
   const viewBegin=renderer.indexOf('    function questTimeView(cur, tot) {');
