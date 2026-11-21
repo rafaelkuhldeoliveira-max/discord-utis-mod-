@@ -18,25 +18,18 @@
 - As preferencias de voz ficam salvas nas configuracoes locais. Fora de uma chamada o estado fica preparado e pode depender da proxima conexao/reconexao.
 - O mecanismo tenta o WebSocket ou o modulo Gateway interno; o Discord pode alterar essas interfaces a qualquer momento. O painel informa envios nao confirmados. **A exibição para outras pessoas nao foi comprovada em chamada real.** Confirme numa chamada de teste com outra conta.
 
-## Coleira — vinculada pelo ID
+## Coleira — escolha manualmente os dois IDs
 
-O painel **Oraculo X > Coleira** identifica automaticamente o ID da sua conta Discord. Ele precisa coincidir com o `DISCORD_OWNER_ID` configurado no bot.
+Abra **Oraculo X > Coleira** e informe:
 
-**Nenhum token ou chave precisa ser digitado no painel.** O bot gera automaticamente um segredo temporario num arquivo local privado (`%APPDATA%\\OraculoX\\coleira-bridge.json`), e a ponte nativa o utiliza para autenticar o controle. O ID identifica a conta, mas nao serve como senha.
+- **1. ID de quem sera acompanhado**: a conta do participante que vai se mover.
+- **2. ID de quem ele vai seguir**: a conta do lider cujas trocas de canal serao acompanhadas.
 
-O bot **oficial** precisa de `DISCORD_BOT_TOKEN` no arquivo `coleira-bot/.env`, e somente ali. Esse token e de aplicativo/bot, nao o token pessoal da sua conta. Configure `DISCORD_GUILD_ID`, `DISCORD_OWNER_ID` e mantenha `COLEIRA_PORT=37659`.
+Clique **Salvar vinculo dos dois IDs**, depois **Ligar**. O bot exige os dois IDs diferentes, no mesmo servidor, e salva a configuracao localmente. Alterar os IDs desliga a Coleira e remove autorizacoes antigas.
 
-O bot deve ser iniciado separadamente no mesmo computador:
+**O participante do primeiro ID deve consentir no Discord com `/seguir`, na mesma chamada do lider.** Para cancelar basta usar `/parar`, sair ou mudar de canal manualmente. Ninguem sera puxado de volta a contragosto.
 
-```powershell
-cd coleira-bot
-Copy-Item .env.example .env
-# Edite o arquivo .env e configure os IDs e o token do BOT OFICIAL
-npm install
-npm start
-```
-
-No servidor, voce controla com `/coleira ligar`, `/coleira desligar` ou pelos botoes do painel. Um participante entra voluntariamente com `/seguir` e sai com `/parar`, ao sair ou trocar manualmente de canal. **Nao existe reentrada forcada.** Leia [instrucoes detalhadas](coleira-bot/README.md).
+O painel nao pede token nem chave. Para rodar o **bot oficial** em segundo plano na sua propria maquina, configure `coleira-bot/.env` com `DISCORD_BOT_TOKEN` (token do **bot**, nunca o seu pessoal), `DISCORD_GUILD_ID` e `DISCORD_OWNER_ID` (conta administradora do painel, separada dos dois IDs escolhidos). Veja o [guia da Coleira](coleira-bot/README.md).
 
 ## Instalar / atualizar
 
