@@ -201,7 +201,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #${NAV_ID} .du-ico{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin-right:12px;flex:0 0 auto}
         #${NAV_ID} .du-lbl{font-size:16px;font-weight:700;white-space:nowrap}
 
-        #du-panel{--bg:#0b0b0f;--bg2:#131319;--bg3:#1b1b23;--line:rgba(255,255,255,.07);--txt:#ececed;--mut:#7d7d89;--acc:#8b5cf6;--red:#ed4245;--warn:#e0913a;
+        #du-panel{--bg:#09060b;--bg2:#170b12;--bg3:#26111c;--line:rgba(255,64,101,.23);--txt:#f8eaf0;--mut:#bea5ae;--acc:#c51639;--red:#ed4245;--warn:#e0913a;
           position:fixed;z-index:2147483000;width:min(440px,calc(100vw - 24px));max-height:min(700px,84vh);display:none;flex-direction:column;overflow:hidden;
           background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.65),0 0 0 1px rgba(0,0,0,.3);
           font-family:var(--font-primary,"gg sans",system-ui,sans-serif);opacity:0;transform:scale(.97);transition:opacity .14s,transform .14s}
@@ -220,7 +220,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-panel .du-tab{flex:1 1 30%;min-width:74px;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 3px;border:none;background:none;color:var(--mut);cursor:pointer;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap;transition:color .12s,background .12s}
         #du-panel .du-tab svg{flex:0 0 auto}
         #du-panel .du-tab:hover{color:var(--txt);background:rgba(255,255,255,.04)}
-        #du-panel .du-tab.active{color:var(--txt);background:rgba(139,92,246,.14);box-shadow:inset 0 0 0 1px rgba(139,92,246,.35)}
+        #du-panel .du-tab.active{color:var(--txt);background:rgba(197,22,57,.20);box-shadow:inset 0 0 0 1px rgba(255,69,106,.42)}
 
         #du-panel .du-body{position:relative;flex:1 1 auto;min-height:120px;padding:14px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
 
@@ -237,7 +237,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         #du-panel .du-btn:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.14)}
         #du-panel .du-btn:disabled{opacity:.45;cursor:default}
         #du-panel .du-btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
-        #du-panel .du-btn.acc:hover{background:#7c46ec}
+        #du-panel .du-btn.acc:hover{background:#ec2853}
         #du-panel .du-btn.red{background:rgba(237,66,69,.12);border-color:rgba(237,66,69,.4);color:#ff6b6e}
         #du-panel .du-btn.red:hover{background:rgba(237,66,69,.2)}
 
@@ -1409,7 +1409,8 @@ if (window.__DiscordUtilsLoaded) {  } else {
 
     function duVoiceOutgoing(packet) {
       const d = Object.assign({}, packet.d);
-      d.self_mute = d.self_mute || duVoiceMod.mute;
+      // Fake Voice precisa anunciar mute + deafen, nao apenas deafen.
+      d.self_mute = d.self_mute || duVoiceMod.mute || duVoiceMod.voice;
       d.self_deaf = d.self_deaf || duVoiceMod.voice;
       return Object.assign({}, packet, { d });
     }
@@ -1477,18 +1478,84 @@ if (window.__DiscordUtilsLoaded) {  } else {
 
     try { duVoiceCapture(); }
     catch (error) { console.warn('[DiscordUtils Mod] Hook indisponivel:', error); }
+    // Verifica continuamente se o Discord recriou a conexao de voz.
+    setInterval(() => { try { duVoiceHookGateway(); } catch (_) {} }, 2500);
 
+
+    // Fallback para clientes que usam o modulo interno Gateway em vez de
+    // enviar quadros pelo WebSocket exposto na pagina.
+    let duVoiceGateway = null, duVoiceGatewayOriginal = null, duVoiceGatewayWrapped = null;
+    let duVoiceGatewayPayload = null;
+    function duVoiceFindGateway() {
+      try {
+        const store = findByProps('getSocket');
+        const sock = store && typeof store.getSocket === 'function' ? store.getSocket() : null;
+        return sock && typeof sock.send === 'function' ? sock : null;
+      } catch (_) { return null; }
+    }
+    function duVoiceHookGateway() {
+      const socket = duVoiceFindGateway();
+      if (!socket) return false;
+      if (socket === duVoiceGateway && socket.send === duVoiceGatewayWrapped) return true;
+      if (duVoiceGateway && duVoiceGateway.send === duVoiceGatewayWrapped) {
+        try { duVoiceGateway.send = duVoiceGatewayOriginal; } catch (_) {}
+      }
+      const base = socket.send;
+      const wrapped = function(op,payload,...args) {
+        if (op === 4 && payload && typeof payload === 'object' && typeof payload.channel_id !== 'undefined') {
+          duVoiceGatewayPayload = Object.assign({},payload);
+          const outbound = duVoiceOutgoing({d:payload}).d;
+          if (duVoiceMod.mute || duVoiceMod.voice) {
+            duVoiceMod.forwarded += 1;
+            duVoiceMod.outboundAt = Date.now();
+          }
+          return base.call(this,op,outbound,...args);
+        }
+        return base.call(this,op,payload,...args);
+      };
+      try {
+        socket.send = wrapped;
+        if (socket.send !== wrapped) return false;
+        duVoiceGateway = socket; duVoiceGatewayOriginal = base; duVoiceGatewayWrapped = wrapped;
+        return true;
+      } catch (_) { return false; }
+    }
+    function duVoiceGatewayState() {
+      try {
+        const id = findByMethods('getVoiceChannelId')?.getVoiceChannelId?.();
+        if (!id) return null;
+        const channel = findByMethods('getChannel')?.getChannel?.(id);
+        const media = findByMethods('isMute','isDeaf');
+        const guild = channel?.guild_id ?? duVoiceGatewayPayload?.guild_id ?? duVoiceMod.packet?.d?.guild_id;
+        if (!guild) return null;
+        return {
+          guild_id:guild, channel_id:id,
+          self_mute:!!media?.isMute?.(), self_deaf:!!media?.isDeaf?.()
+        };
+      } catch (_) { return null; }
+    }
     function duVoiceSync() {
       const ws = duVoiceMod.socket;
-      if (!ws || ws.readyState !== 1 || !duVoiceMod.packet || !duVoiceMod.packet.d.channel_id) return false;
+      if (ws && ws.readyState === 1 && duVoiceMod.packet && duVoiceMod.packet.d.channel_id) {
+        try {
+          const next = duVoiceOutgoing(duVoiceMod.packet);
+          duVoiceRawSend.call(ws, duVoiceEncode(next, duVoiceMod.kind));
+          duVoiceMod.forwarded += 1;
+          duVoiceMod.outboundAt = Date.now();
+          return true;
+        } catch (error) { console.warn('[Oraculo X] Erro no gateway WebSocket:', error); }
+      }
+      // Se o Discord atual não usa o WebSocket visível, tenta o módulo interno.
+      if (!duVoiceHookGateway()) return false;
+      const payload = duVoiceGatewayState();
+      if (!payload || duVoiceGateway?.isConnected?.() === false) return false;
       try {
-        const next = duVoiceOutgoing(duVoiceMod.packet);
-        duVoiceRawSend.call(ws, duVoiceEncode(next, duVoiceMod.kind));
+        duVoiceGateway.send(4,payload);
         duVoiceMod.forwarded += 1;
         duVoiceMod.outboundAt = Date.now();
         return true;
       } catch (error) {
-        console.warn('[DiscordUtils Mod] Erro ao sincronizar:', error);
+        console.warn('[Oraculo X] Erro no gateway interno:', error);
         return false;
       }
     }
@@ -1514,6 +1581,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
       for (const parent of parents) {
         if (!parent.querySelectorAll) continue;
         for (const button of parent.querySelectorAll('button[aria-label],button[title],button[data-testid]')) {
+          if (button.closest('#du-oraculo-voice-buttons')) continue;
           const kind = duVoiceButtonKind(button);
           if (!kind || !button.classList) continue;
           if (kind === 'mute') muteFound = true;
@@ -1524,9 +1592,50 @@ if (window.__DiscordUtilsLoaded) {  } else {
       }
       duVoiceMod.voiceUi.muteFound = muteFound;
       duVoiceMod.voiceUi.voiceFound = voiceFound;
+      duVoiceMountButtons();
     }
 
+
+    // Botoes proprios: nao pressionam o mute/deafen real, ativam na hora.
+    function duVoiceMountButtons() {
+      const id = 'du-oraculo-voice-buttons';
+      let wrapper = document.getElementById(id);
+      const controls = document.querySelectorAll('[class*="panels_"] button[aria-label], [class*="voiceControls_"] button[aria-label], [class*="callControls_"] button[aria-label], [class*="bottomControls_"] button[aria-label]');
+      const nativeMute = [...controls].find(button => duVoiceButtonKind(button) === 'mute' && !button.closest('#'+id));
+      if (!wrapper && !nativeMute) return;
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = id;
+        for (const [kind, label, iconType] of [['mute','Fake Mute','mic'],['voice','Fake Voice','headset']]) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.dataset.fakeVoice = kind;
+          b.setAttribute('role','switch');
+          b.setAttribute('aria-label',label);
+          b.title = label+' (liga/desliga sem reiniciar)';
+          b.innerHTML = duVoiceGlyph(iconType,false);
+          b.addEventListener('click', event => {
+            event.stopPropagation(); event.preventDefault();
+            duVoiceSet(kind,!duVoiceMod[kind]);
+            duVoicePaintControls();
+            if (panel?.classList.contains('open') && tabs[activeTab]?.name === 'Mod') renderActiveTab();
+          });
+          wrapper.appendChild(b);
+        }
+      }
+      if (nativeMute && wrapper.parentElement !== nativeMute.parentElement) {
+        nativeMute.parentElement.appendChild(wrapper);
+      }
+      for (const kind of ['mute','voice']) {
+        const b = wrapper.querySelector('[data-fake-voice="'+kind+'"]');
+        if (!b) continue;
+        const active = !!duVoiceMod[kind];
+        b.classList.toggle('on',active);
+        b.setAttribute('aria-checked',String(active));
+      }
+    }
     function duVoiceStartControls() {
+      duVoiceCapture();
+      duVoiceHookGateway();
       duVoiceStyle();
       duVoicePaintControls();
       if (!document.body || typeof MutationObserver === 'undefined') return;
@@ -1551,8 +1660,8 @@ if (window.__DiscordUtilsLoaded) {  } else {
       }
       duVoicePaintControls();
       const sent = duVoiceSync();
-      toast(sent ? 'Estado enviado. Confirme o icone usando outra conta.' :
-        'Preferencia salva. Entre novamente em uma chamada para aplicar.',
+      toast(sent ? 'Estado enviado sem reiniciar. Confirme com outra conta.' :
+        'Preferencia salva. Entre ou reconecte a uma chamada para aplicar.',
         sent ? 'ok' : 'inf', 'Mod');
     }
 
@@ -1561,12 +1670,18 @@ if (window.__DiscordUtilsLoaded) {  } else {
       const style = document.createElement('style');
       style.id = 'du-global-mod-css';
       style.textContent = [
+        '#du-oraculo-voice-buttons{display:inline-flex;align-items:center;gap:6px;margin:0 5px}',
+        '#du-oraculo-voice-buttons button{display:grid;place-items:center;border:1px solid rgba(255,50,87,.35);border-radius:9px;background:#201018;color:#f0c6d0;cursor:pointer}',
+        '#du-oraculo-voice-buttons button[data-fake-voice="mute"]{width:29px;height:29px}',
+        '#du-oraculo-voice-buttons button[data-fake-voice="voice"]{width:46px;height:36px}',
+        '#du-oraculo-voice-buttons button.on{background:#9f1634;color:white;border-color:#ff456a;box-shadow:0 0 10px rgba(219,27,71,.35)}',
+        '#du-oraculo-voice-buttons button:focus-visible{outline:2px solid #ff456a;outline-offset:2px}',
         '#du-panel .du-mod-card{display:flex;align-items:center;gap:12px;margin:10px 0;padding:13px;background:var(--bg2);border:1px solid var(--line);border-radius:12px}',
         '#du-panel .du-mod-symbol{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:rgba(139,92,246,.16);color:#c4b5fd;flex:none}',
         '#du-panel .du-mod-copy{flex:1;min-width:0}',
         '#du-panel .du-mod-name{font-size:13px;font-weight:700;color:#fff}',
         '#du-panel .du-mod-desc{font-size:11px;line-height:1.45;color:var(--mut);margin-top:4px}',
-        '#du-panel .du-mod-toggle{width:21px;height:21px;accent-color:#8b5cf6;cursor:pointer;flex:none}',
+        '#du-panel .du-mod-toggle{width:21px;height:21px;accent-color:#d51d46;cursor:pointer;flex:none}',
         '#du-panel .du-mod-preview{padding:13px;margin-top:15px;border-radius:11px;border:1px solid var(--line);background:#101015}',
         '#du-panel .du-mod-preview-line{display:flex;align-items:center;gap:10px;font-size:12px}',
         '#du-panel .du-mod-bubble{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#5865f2;font-weight:700}',
@@ -1591,12 +1706,12 @@ if (window.__DiscordUtilsLoaded) {  } else {
     function renderMod(body) {
       duVoiceStyle();
       body.appendChild(el('div', { className:'du-sec' }, 'Mod - Voz'));
-      body.appendChild(el('div', { className:'du-hint' }, 'Status de mute/defafen enviado ao Discord, sem acionar os botoes locais de audio. Funciona somente se o Gateway aceitar o quadro.'));
+      body.appendChild(el('div', { className:'du-hint' }, 'Fake Mute e Fake Voice funcionam como interruptores imediatos. Os botoes extras nao silenciam o microfone nem os fones. O resultado para outras pessoas depende do Gateway.'));
 
       const preview = el('div', { className:'du-mod-preview' });
       const status = el('div', { className:'du-mod-state' });
       const paint = () => {
-        const online = !!(duVoiceMod.socket && duVoiceMod.socket.readyState === 1 && duVoiceMod.packet);
+        const online = !!((duVoiceMod.socket && duVoiceMod.socket.readyState === 1 && duVoiceMod.packet) || (duVoiceGateway && duVoiceGateway?.isConnected?.() !== false && duVoiceGatewayState()));
         const m = duVoiceMod.mute, v = duVoiceMod.voice;
         preview.innerHTML = '<div class="du-mod-preview-line"><span class="du-mod-bubble">D</span><strong>Minha conta - Previa</strong><span class="du-mod-icons"><span class="' +
           (m ? 'du-mod-red' : '') + '">' + duVoiceGlyph('mic', m) + '</span><span class="' +
@@ -1607,8 +1722,8 @@ if (window.__DiscordUtilsLoaded) {  } else {
         status.textContent = !online
           ? 'Aguardando Gateway. Entre ou reconecte na chamada; os icones vermelhos sao apenas visuais ate o envio.'
           : confirmed
-            ? 'Discord confirmou o estado de voz da sua conta. Confira audio e aparencia com outra conta.'
-            : 'Gateway capturado; quadros enviados: ' + duVoiceMod.forwarded + '. Estado remoto ainda nao confirmado.';
+            ? 'Evento do Discord confirmou o estado de voz. Confira audio e aparencia com outra conta.'
+            : 'Gateway encontrado; quadros enviados: ' + duVoiceMod.forwarded + '. Estado remoto ainda nao confirmado.';
       };
 
       function card(key, title, desc, type) {
@@ -1628,7 +1743,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
         body.appendChild(wrap);
       }
       card('mute', 'Fake Mute', 'Anuncia microfone mutado mantendo a captura local ativa.', 'mic');
-      card('voice', 'Fake Voice', 'Anuncia fone desativado mantendo a saida de audio local.', 'headset');
+      card('voice', 'Fake Voice', 'Anuncia microfone mutado e fones desativados, mantendo entrada e saida locais.', 'headset');
       body.appendChild(preview);
       body.appendChild(status);
       const sync = el('button', { className:'du-btn' }, 'Sincronizar na chamada');
@@ -1752,7 +1867,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
       injectBaseStyle();
       panel = el('div', { id: 'du-panel' });
       const head = el('div', { className: 'du-head' });
-      head.innerHTML = `<div class="du-brand"><span class="du-g">${icon('gear', 18)}</span><div class="du-title">Discord Utils</div></div><button class="du-x" title="Fechar">${icon('x', 16)}</button>`;
+      head.innerHTML = `<div class="du-brand"><span class="du-g">${icon('gear', 18)}</span><div class="du-title">Oraculo X</div></div><button class="du-x" title="Fechar">${icon('x', 16)}</button>`;
       head.querySelector('.du-x').onclick = () => togglePanel(false);
       panel.appendChild(head); enableDrag(head);
       const tabsBar = el('div', { className: 'du-tabs' }); tabButtons = [];
