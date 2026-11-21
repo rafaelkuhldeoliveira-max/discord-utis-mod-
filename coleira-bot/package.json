@@ -1,0 +1,1 @@
+{"name":"discordutils-coleira","version":"1.0.0","private":true,"type":"commonjs","engines":{"node":">=20.11.0"},"scripts":{"start":"node --env-file=.env src/index.js","test":"node --test"},"dependencies":{"discord.js":"^14.28.0"}}
