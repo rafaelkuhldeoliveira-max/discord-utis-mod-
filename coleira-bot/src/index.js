@@ -10,7 +10,7 @@ const OWNER_ID = process.env.DISCORD_OWNER_ID || '';
 const CONTROL_KEY = process.env.COLEIRA_CONTROL_KEY || '';
 const PORT = Number(process.env.COLEIRA_PORT || 37659);
 if (!TOKEN || !/^\d{15,22}$/.test(GUILD_ID) || !/^\d{15,22}$/.test(OWNER_ID) ||
-    CONTROL_KEY.length < 24 || !Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
+    (CONTROL_KEY.length < 24 || CONTROL_KEY === 'UMA_CHAVE_ALEATORIA_DE_32_CARACTERES' || !/^[a-zA-Z0-9_-]+$/.test(CONTROL_KEY)) || !Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
   console.error('Configure o arquivo .env (token do bot, IDs, chave de controle e porta).');
   process.exit(1);
 }
