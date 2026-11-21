@@ -3,6 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const http = require('http');
 
 let electron;
 try {
@@ -287,8 +288,60 @@ function injectRenderer(webContents) {
 
 const DRAIN = '(function(){try{var o=window.__DU_OUTBOX__;if(!o||!o.length)return "";return JSON.stringify(o.splice(0,o.length));}catch(e){return "";}})()';
 
+
+function handleColeira(msg, wc) {
+  const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
+  const requestId = Number(data.requestId) || 0;
+  const key = String(data.key || '').slice(0, 128);
+  const deliver = detail => {
+    if (wc.isDestroyed()) return;
+    const result = Object.assign({requestId}, detail);
+    const js = 'window.dispatchEvent(new CustomEvent("du-coleira-response",{detail:' +
+      JSON.stringify(result) + '}))';
+    wc.executeJavaScript(js).catch(() => {});
+  };
+  if (!/^[a-zA-Z0-9_-]{24,128}$/.test(key)) {
+    deliver({ok:false,error:'Informe uma chave de controle valida (24 ou mais caracteres).'});
+    return;
+  }
+  if (data.op !== 'status' && data.op !== 'toggle') {
+    deliver({ok:false,error:'Acao desconhecida.'});
+    return;
+  }
+  const path = data.op === 'status' ? '/status' : '/toggle';
+  const body = data.op === 'toggle' ? JSON.stringify({active:!!data.active}) : '';
+  const request = http.request({
+    hostname:'127.0.0.1', port:37659, path,
+    method:data.op === 'status' ? 'GET' : 'POST',
+    headers:{
+      'X-Coleira-Key':key,
+      'Content-Type':'application/json',
+      'Content-Length':Buffer.byteLength(body)
+    }
+  }, response => {
+    let received = '';
+    response.on('data', chunk => {
+      received += chunk;
+      if (received.length > 16384) response.destroy(new Error('Resposta muito longa'));
+    });
+    response.on('end', () => {
+      try {
+        const parsed = JSON.parse(received);
+        if (response.statusCode >= 200 && response.statusCode < 300)
+          deliver({ok:true,data:parsed});
+        else deliver({ok:false,error:parsed.error || 'Erro HTTP ' + response.statusCode});
+      } catch (_) { deliver({ok:false,error:'Resposta invalida do bot.'}); }
+    });
+    response.on('error', err => deliver({ok:false,error:err.message}));
+  });
+  request.setTimeout(4000, () => request.destroy(new Error('Tempo esgotado')));
+  request.on('error', () => deliver({ok:false,error:'Bot offline. Inicie coleira-bot com npm start.'}));
+  request.end(body);
+}
+
 function handleMessage(msg, wc) {
   if (!msg || typeof msg !== 'object') return;
+  if (msg.type === 'coleira') { handleColeira(msg, wc); return; }
   if (msg.type === 'settings') { saveSettings(msg.data); return; }
   if (msg.type === 'devtools') {
     try { if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' }); } catch (e) { console.error('[DiscordUtils] openDevTools:', e); }
