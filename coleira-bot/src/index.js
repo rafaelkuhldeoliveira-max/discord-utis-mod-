@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { timingSafeEqual, randomBytes } = require('node:crypto');
 const { Client, Events, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { mayEnroll, shouldFollow, optedOut } = require('./policy');
+const { mayEnrollPair, shouldFollowPair, optedOut, validDiscordId: validId, validPair } = require('./policy');
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 const GUILD_ID = process.env.DISCORD_GUILD_ID || '';
@@ -22,7 +22,6 @@ const CONTROL_KEY = randomBytes(32).toString('hex');
 const BRIDGE_DIR = path.join(process.env.APPDATA || path.join(os.homedir(), '.config'), 'OraculoX');
 const BRIDGE_FILE = path.join(BRIDGE_DIR, 'coleira-bridge.json');
 const PAIR_FILE = path.join(BRIDGE_DIR, 'coleira-pair.json');
-const validId = id => typeof id === 'string' && /^\d{15,22}$/.test(id);
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
@@ -34,7 +33,7 @@ let leaderId = null;
 function loadPair() {
   try {
     const p = JSON.parse(fs.readFileSync(PAIR_FILE, 'utf8'));
-    if (validId(p.followerId) && validId(p.leaderId) && p.followerId !== p.leaderId) {
+    if (validPair(p.followerId,p.leaderId)) {
       followerId = p.followerId;
       leaderId = p.leaderId;
     }
@@ -61,7 +60,7 @@ function activate(state) {
   return snapshot();
 }
 async function configurePair(nextFollowerId,nextLeaderId) {
-  if (!validId(nextFollowerId) || !validId(nextLeaderId) || nextFollowerId === nextLeaderId) {
+  if (!validPair(nextFollowerId,nextLeaderId)) {
     throw new Error('Informe dois IDs diferentes do Discord (15 a 22 digitos).');
   }
   if (!client.isReady()) throw new Error('Bot ainda nao esta conectado ao Discord.');
@@ -142,7 +141,7 @@ client.on(Events.InteractionCreate, async interaction => {
         interaction.guild.members.fetch(interaction.user.id)
       ]);
       leaderChannelId = leader.voice.channelId;
-      if (!mayEnroll(enabled, leaderChannelId, member.voice.channelId)) {
+      if (!mayEnrollPair(enabled, interaction.user.id, followerId, leaderChannelId, member.voice.channelId)) {
         return await answer('Entre no mesmo canal de voz da pessoa que vai seguir e use /seguir com a Coleira ligada.');
       }
       subscribers.add(interaction.user.id);
@@ -165,7 +164,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       if (!enabled || leaderChannelId !== to || id !== followerId) break;
       try {
         const member = await newState.guild.members.fetch(id);
-        if (!shouldFollow(enabled, subscribers.has(id), from, to, member.voice.channelId)) {
+        if (!shouldFollowPair(enabled, id, followerId, subscribers.has(id), from, to, member.voice.channelId)) {
           subscribers.delete(id);
           continue;
         }
