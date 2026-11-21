@@ -58,7 +58,7 @@ test('instalador usa renderer global, com missoes e Orbs',()=>{
   assert.match(renderer,/loadOrbs\(/);
   for (const name of ['renderer.js','inject.js']) {
     const sha = crypto.createHash('sha256').update(load('discordutils-global/'+name)).digest('hex').toUpperCase();
-    assert.ok(installer.includes(sha),'O hash SHA256 publicado para '+name+' nao corresponde ao arquivo');
+    assert.ok(installer.includes(sha),'O hash SHA256 publicado para '+name+' nao corresponde ao arquivo. Calculado no runner: '+sha);
   }
 });
 
