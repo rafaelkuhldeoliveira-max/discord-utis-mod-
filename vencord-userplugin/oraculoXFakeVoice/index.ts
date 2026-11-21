@@ -6,16 +6,14 @@ import { definePluginSettings } from "@api/Settings";
 // Estas patches so evitam mute/deafen local; nao garantem o estado remoto.
 const settings = definePluginSettings({
     fakeMute: {
-        description: "Fake Mute: manter microfone local ativo (requer reinicio)",
+        description: "Fake Mute: manter microfone local ativo; muda imediatamente",
         type: OptionType.BOOLEAN,
-        default: false,
-        restartNeeded: true
+        default: false
     },
     fakeDeafen: {
-        description: "Fake Voice: manter audio local ativo (requer reinicio)",
+        description: "Fake Voice: manter audio local ativo; muda imediatamente",
         type: OptionType.BOOLEAN,
-        default: false,
-        restartNeeded: true
+        default: false
     }
 });
 
