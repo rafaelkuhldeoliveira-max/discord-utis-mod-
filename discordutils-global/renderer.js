@@ -326,11 +326,11 @@ if (window.__DiscordUtilsLoaded) {  } else {
         .du-job .jt{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .du-job .jx{flex:0 0 auto;display:flex;padding:4px;border:none;background:none;color:#6f6f7d;cursor:pointer;border-radius:6px}
         .du-job .jx:hover{color:#fff;background:rgba(237,66,69,.85)}
-        .du-job .jbar{height:6px;margin:10px 0 7px;border-radius:4px;background:#32111f;overflow:hidden}
-        .du-job .jfill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#c51639,#c51639);transition:width .25s}
+        .du-job .jbar{height:7px;margin:10px 0 7px;border-radius:5px;background:#32111f;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,69,106,.24)}
+        .du-job .jfill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#ac1034,#ff456a);transition:width .25s}
         .du-job .jfill.ind{width:38%;animation:duind 1.1s infinite ease-in-out}
         @keyframes duind{0%{margin-left:-38%}100%{margin-left:100%}}
-        .du-job .js{font-size:11px;color:#9a9aa8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .du-job .js{font-size:11px;color:#ffbecd;line-height:1.45;white-space:normal;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 
         #du-modalbg{position:fixed;inset:0;z-index:2147483035;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(2px);opacity:0;transition:opacity .12s}
         #du-modalbg.on{opacity:1}
