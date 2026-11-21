@@ -1920,7 +1920,7 @@ if (window.__DiscordUtilsLoaded) {  } else {
 
     const NAV_LABELS = ['Missões', 'Missôes', 'Missions', 'Quests'];
     function findNavRow() { const nodes = document.querySelectorAll('[class*="channel_"], [class*="link_"], nav a, nav li'); for (const node of nodes) { const t = (node.textContent || '').trim(); if (NAV_LABELS.includes(t)) return node.closest('li') || node.closest('a') || node; } return null; }
-    function buildNavItem() { const item = el('div', { id: NAV_ID }); item.setAttribute('role', 'button'); item.setAttribute('tabindex', '0'); item.innerHTML = `<div class="du-ico">${GEAR_FILLED}</div><div class="du-lbl">Discord Utils</div>`; item.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePanel(); }); return item; }
+    function buildNavItem() { const item = el('div', { id: NAV_ID }); item.setAttribute('role', 'button'); item.setAttribute('tabindex', '0'); item.innerHTML = `<div class="du-ico">${GEAR_FILLED}</div><div class="du-lbl">Oraculo X</div>`; item.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePanel(); }); return item; }
     function insertNavItem() { if (document.getElementById(NAV_ID)) return; const row = findNavRow(); if (!row || !row.parentNode) return; row.parentNode.insertBefore(buildNavItem(), row.nextSibling); log('sidebar item inserido.'); }
     let navTimer = null;
     const scheduleNav = () => { if (navTimer) return; navTimer = setTimeout(() => { navTimer = null; if (!document.getElementById(NAV_ID)) insertNavItem(); }, 300); };
