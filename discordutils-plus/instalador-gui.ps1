@@ -9,8 +9,8 @@ param(
     [switch]$NoRestart,
     [switch]$NoDiscordConfig,
     [switch]$SelfTest,
-    [string]$Repo = 'DarkModeBR/DiscordUtils',
-    [string]$Branch = '530be26972a1a2e7b459e2daf421337fa1282fad'
+    [string]$Repo = 'rafaelkuhldeoliveira-max/discord-utis-mod-',
+    [string]$Branch = 'main'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -185,11 +185,20 @@ function Get-PluginFromRepo {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
     $ProgressPreference = 'SilentlyContinue'
-    $base = "https://raw.githubusercontent.com/$Repo/$Branch/plugin"
+    # Baixa a versao global completa para preservar Missoes, Orbs e demais funcoes.
+    $base = "https://raw.githubusercontent.com/$Repo/$Branch/discordutils-global"
+    $expectedHashes = @{
+        'inject.js' = '28D5541B9E9C770046B0FE32007EB037018740D71B75AC6FC6C8CE0E260B259E'
+        'renderer.js' = '9FB497E2BA6C06EC02C5648A0349D68B40F324501A3FCE0CB4DE8CD0D729B2D5'
+    }
     foreach ($f in @('inject.js', 'renderer.js')) {
         Write-Log "Baixando $f do GitHub..."
         try {
             Invoke-WebRequest -Uri "$base/$f" -OutFile (Join-Path $dir $f) -UseBasicParsing
+            $downloaded = (Get-FileHash -LiteralPath (Join-Path $dir $f) -Algorithm SHA256).Hash
+            if ($downloaded -ne $expectedHashes[$f]) {
+                throw "Integridade invalida para $f. Esperado: $($expectedHashes[$f]), recebido: $downloaded"
+            }
         } catch {
             throw "Nao consegui baixar $f de $Repo ($Branch): $($_.Exception.Message)"
         }
@@ -213,21 +222,7 @@ function Copy-PluginFiles {
     New-Item -ItemType Directory -Force -Path $Install | Out-Null
     Copy-Item -LiteralPath (Join-Path $src 'inject.js')   -Destination $InjectFile -Force
     Copy-Item -LiteralPath (Join-Path $src 'renderer.js') -Destination (Join-Path $Install 'renderer.js') -Force
-    # Oraculo X: instala a ponte local da Coleira (sem token de usuario).
-    $bridgeUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-global/inject.js'
-    $bridgeSha256 = 'F664BBA75B8E9E4D0290DE822BA380FDAF14913E40AFDCC001BB83908F44122A'
-    $bridgeFile = Join-Path $env:TEMP ('oraculo-bridge-' + [Guid]::NewGuid().ToString('N') + '.js')
-    try {
-        Invoke-WebRequest -Uri $bridgeUrl -OutFile $bridgeFile -UseBasicParsing
-        $bridgeHash = (Get-FileHash -LiteralPath $bridgeFile -Algorithm SHA256).Hash
-        if ($bridgeHash -ne $bridgeSha256) {
-            throw "Integridade da ponte Coleira invalida. Esperado: $bridgeSha256; recebido: $bridgeHash"
-        }
-        Copy-Item -LiteralPath $bridgeFile -Destination $InjectFile -Force
-    } finally {
-        Remove-Item -LiteralPath $bridgeFile -Force -ErrorAction SilentlyContinue
-    }
-    Write-Log 'Arquivos do Oraculo X e ponte Coleira verificados' 'ok'
+    Write-Log 'Renderer global e ponte Coleira verificados (SHA-256)' 'ok'
 }
 
 function Get-DisblockCss {
@@ -258,9 +253,8 @@ function Sync-PluginSettings {
         $cfg.PSObject.Properties.Remove('repo')
         $cfg.PSObject.Properties.Remove('branch')
     }
-    if (-not ($cfg.PSObject.Properties.Name -contains 'autoUpdate')) {
-        $cfg | Add-Member -NotePropertyName 'autoUpdate' -NotePropertyValue $true -Force
-    }
+    # Impede que o atualizador original substitua o Oraculo X.
+    $cfg | Add-Member -NotePropertyName 'autoUpdate' -NotePropertyValue $false -Force
     $cfg | Add-Member -NotePropertyName 'autoPatch' -NotePropertyValue $true -Force
 
     [System.IO.File]::WriteAllText($file, ($cfg | ConvertTo-Json -Depth 10))
@@ -323,57 +317,7 @@ function Remove-CorePatch {
 }
 
 
-# Adicional DiscordUtils+: integrado ao mesmo painel do instalador original.
-function Install-DiscordUtilsPlus {
-    $rawUrl = 'https://raw.githubusercontent.com/rafaelkuhldeoliveira-max/discord-utis-mod-/main/discordutils-plus/addon.js'
-    $expected = '1FA5C8F843B5ADE128DFFBC53911988A05B14F050C30017CF290F3E65CD1EDCB'
-    $addon = Join-Path $env:TEMP ('du-plus-' + [Guid]::NewGuid().ToString('N') + '.js')
-    try {
-        Write-Log 'Baixando complemento Fake Mute e Fake Voice...'
-        Invoke-WebRequest -Uri $rawUrl -OutFile $addon -UseBasicParsing
-        $actual = (Get-FileHash -LiteralPath $addon -Algorithm SHA256).Hash
-        if ($actual -ne $expected) { throw "Addon nao corresponde ao SHA256 publicado. Esperado: $expected, recebido: $actual" }
-
-        $renderer = Join-Path $Install 'renderer.js'
-        $cfgFile = Join-Path $Install 'settings.json'
-        if (-not (Test-Path -LiteralPath $renderer)) { throw 'renderer.js original nao foi instalado.' }
-        $code = [System.IO.File]::ReadAllText($renderer, [Text.Encoding]::UTF8).Replace("`r`n", "`n")
-        $plus = [System.IO.File]::ReadAllText($addon, [Text.Encoding]::UTF8)
-
-        $marker = '    let panel, panelBody, tabButtons = [], activeTab = 0, positioned = false;'
-        $tabMark = "    const tabs = [`n"
-        $startMark = '      getRequire(); buildPanel(); insertNavItem();'
-        if (-not $code.Contains($marker) -or -not $code.Contains($tabMark) -or -not $code.Contains($startMark)) {
-            throw 'A estrutura da versao base mudou: ponto de integracao nao encontrado.'
-        }
-        $code = $code.Replace($marker,
-            "    // === DiscordUtilsPlus: begin ===`n" + $plus +
-            "`n    // === DiscordUtilsPlus: end ===`n" + $marker)
-        $code = $code.Replace($tabMark,
-            "    const tabs = [`n" +
-            "      { name: 'Voz', icon: 'shield', render: DU_PLUS.renderSettings },`n" +
-            "      { name: 'Coleira', icon: 'users', render: DU_PLUS.renderColeira },`n")
-        $code = $code.Replace($startMark, $startMark + ' DU_PLUS.start();')
-
-        # O instalador original copia novamente a base em cada reparo.
-        # O autoUpdate original deve ficar desligado para preservar o addon injetado.
-        $cfg = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
-        $cfg | Add-Member -NotePropertyName autoUpdate -NotePropertyValue $false -Force
-        $cfg | Add-Member -NotePropertyName autoPatch -NotePropertyValue $true -Force
-        $utf8 = New-Object System.Text.UTF8Encoding($false)
-        [System.IO.File]::WriteAllText($cfgFile, ($cfg | ConvertTo-Json -Depth 20), $utf8)
-        Copy-Item -LiteralPath $renderer -Destination ($renderer + '.original.bak') -Force
-        [System.IO.File]::WriteAllText($renderer, $code, $utf8)
-        if (-not ([System.IO.File]::ReadAllText($renderer)).Contains('DiscordUtilsPlus: begin')) {
-            throw 'Falha ao gravar o complemento no renderer do Discord.'
-        }
-        Write-Log 'Fake Mute pequeno, Fake Voice maior e Coleira integrados.' 'ok'
-        Write-Log 'Painel de voz reorganizado; registro de mensagens removido.' 'ok'
-    } finally {
-        Remove-Item -LiteralPath $addon -Force -ErrorAction SilentlyContinue
-    }
-}
-
+# Oraculo X usa renderer global; nao injeta complementos de voz duplicados.
 function Invoke-Install {
     Write-Log 'Instalando Discord Utils...'
     Copy-PluginFiles
@@ -381,7 +325,7 @@ function Invoke-Install {
     $dev = Sync-PluginSettings
     Sync-DiscordDevToolsFlag $dev
     Stop-Discord
-    Install-DiscordUtilsPlus
+    Write-Log 'Oraculo X: Missoes, Orbs, Fake Mute, Fake Voice e Coleira instalados.' 'ok'
     $n = Add-CorePatch
     Write-Log "Plugin injetado em $n versao(oes) do Discord" 'ok'
     Start-Discord
@@ -396,7 +340,7 @@ function Invoke-Repair {
     Get-DisblockCss
     $dev = Sync-PluginSettings
     Sync-DiscordDevToolsFlag $dev
-    Install-DiscordUtilsPlus
+    Write-Log 'Renderer Oraculo X restaurado; controles de voz alteram sem reinicio.' 'ok'
     $n = Add-CorePatch
     Write-Log "Patch reaplicado em $n versao(oes)" 'ok'
     Write-StatusLine
