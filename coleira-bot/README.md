@@ -4,7 +4,7 @@ Adaptacao da ideia do repositorio byoulis/discord-coleira, com bot oficial e par
 
 ## Pre-requisitos
 
-- Node.js 20.11 ou superior.
+- Node.js 24.17 ou superior.
 - Bot criado em https://discord.com/developers/applications com permissoes **Mover membros**, **Conectar** e **Ver canais**.
 - Convite do bot com escopos **bot** e **applications.commands** no servidor desejado.
 
