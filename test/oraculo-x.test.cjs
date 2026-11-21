@@ -61,3 +61,49 @@ test('instalador usa renderer global, com missoes e Orbs',()=>{
     assert.ok(installer.includes(sha),'O hash SHA256 publicado para '+name+' nao corresponde ao arquivo');
   }
 });
+
+function formatQuestProgress(current, target) {
+  const duration = renderer.match(/^    function qDur\(sec\) \{[^\n]+$/m);
+  const begin = renderer.indexOf('    function questTimeView(cur, tot) {');
+  const end = renderer.indexOf('    function updateQuestProgress(cur, tot) {',begin);
+  assert.ok(duration && begin > 0 && end > begin,'Formatador de tempo da missao nao encontrado');
+  return vm.runInNewContext(duration[0]+'\n'+renderer.slice(begin,end)+
+    '\nquestTimeView('+JSON.stringify(current)+','+JSON.stringify(target)+')',{});
+}
+
+test('tempo da missao mostra duracao, andamento, restante estimado e percentual',()=>{
+  const progress = formatQuestProgress(65,300);
+  assert.equal(progress.elapsed,65);
+  assert.equal(progress.target,300);
+  assert.equal(progress.remaining,235);
+  assert.equal(progress.percent,22);
+  assert.match(progress.label,/1min 5s \/ 5min/);
+  assert.match(progress.label,/restante estimado: 3min 55s/);
+});
+test('tempo da missao nao exibe restante negativo ou percentual maior que 100',()=>{
+  for (const [current,target,expectedRemaining,expectedPercent] of [
+    [0,300,300,0], [300,300,0,100], [999,300,0,100], [-3,300,300,0],[0,0,0,0]
+  ]) {
+    const data = formatQuestProgress(current,target);
+    assert.equal(data.remaining,expectedRemaining);
+    assert.equal(data.percent,expectedPercent);
+  }
+});
+test('tema Oraculo X aplica vermelho carmesim ao executor de Orbs e a barra de tempo',()=>{
+  assert.match(renderer,/#du-panel\{--bg:#09060b/);
+  assert.match(renderer,/#du-panel \.q-card\{[^\n]*#1b0c14/);
+  assert.match(renderer,/#du-panel \.q-reward\{[^\n]*#ffb1c3/);
+  assert.match(renderer,/\.du-job \.jfill\{[^\n]*linear-gradient\(90deg,#c51639,#c51639\)/);
+  assert.match(renderer,/class="qp-track"/);
+  assert.match(renderer,/class="qp-bar"[^\n]*linear-gradient\(90deg,#ac1034,#ff456a\)/);
+  assert.match(renderer,/aria-valuenow/);
+  assert.doesNotMatch(renderer,/#5865f2|#8b5cf6|#7c46ec|#a78bfa|#c4b5fd/i);
+});
+test('regras de duracao e endpoints de missao nao foram alteradas pelo tema',()=>{
+  assert.match(renderer,/function qPick\(q\)/);
+  assert.match(renderer,/function completeQuest\(q, onProgress\)/);
+  assert.match(renderer,/\/quests\/\$\{id\}\/video-progress/);
+  assert.match(renderer,/\/quests\/\$\{id\}\/heartbeat/);
+  assert.match(renderer,/function renderMissoes\(body\)/);
+  assert.match(renderer,/function updateQuestProgress\(cur, tot\)/);
+});
