@@ -554,6 +554,84 @@
         hint.textContent='Fora da chamada, os modos ficam preparados e aplicam ao entrar. As escolhas ficam salvas por conta. Depois de alterar uma opcao, feche totalmente o Discord e reabra.';
         body.appendChild(hint);
       }
+
+      // Coleira: API local do bot oficial. Chave somente em memoria.
+      let coleiraKey = '';
+      let coleiraSeq = 0;
+      let coleiraListener = null;
+      function renderColeira(body) {
+        body.replaceChildren();
+        heading(body,'ORACULO X | Coleira','Controle de acompanhamento voluntario: participantes entram na sua chamada e usam /seguir. Sair, trocar de canal ou /parar cancela a autorizacao.');
+        const input = document.createElement('input');
+        input.type = 'password'; input.className = 'du-input';
+        input.placeholder = 'COLEIRA_CONTROL_KEY do .env (24+ caracteres)';
+        input.autocomplete = 'off'; input.value = coleiraKey;
+        input.setAttribute('aria-label','Chave de controle da Coleira');
+        input.oninput = () => { coleiraKey = input.value.trim(); };
+        body.appendChild(input);
+        const note = document.createElement('p');
+        note.className = 'du-plus-hint';
+        note.textContent = 'Use o token do bot oficial apenas no arquivo .env do bot, nunca o token da sua conta. Execute npm start na pasta coleira-bot para ativar a ponte local.';
+        body.appendChild(note);
+        const status = document.createElement('div');
+        status.className = 'du-plus-status';
+        status.textContent = 'Clique em Conectar / Atualizar para consultar o bot.';
+        body.appendChild(status);
+        const members = document.createElement('p');
+        members.className = 'du-plus-hint';
+        members.textContent = 'Participantes: ainda nao consultados.';
+        body.appendChild(members);
+        const latest = {id:0};
+        const send = (op,active) => {
+          if (!/^[A-Za-z0-9_-]{24,128}$/.test(coleiraKey)) {
+            status.textContent = 'Informe uma chave de controle valida (24-128 caracteres).';
+            return;
+          }
+          if (typeof sendNative !== 'function') {
+            status.textContent = 'Ponte nativa indisponivel; use Reparar no instalador.';
+            return;
+          }
+          latest.id = ++coleiraSeq;
+          status.textContent = 'Comunicando com o bot em 127.0.0.1:37659...';
+          sendNative('coleira',{op,active,key:coleiraKey,requestId:latest.id});
+          if (op === 'toggle') requestRestart();
+        };
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px';
+        const button = (label,op,active) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'du-btn';
+          b.style.cssText = 'flex:1;min-width:108px';
+          b.textContent = label; b.onclick = () => send(op,active);
+          return b;
+        };
+        row.append(button('Conectar / Atualizar','status'),button('Ligar','toggle',true),button('Desligar','toggle',false));
+        body.appendChild(row);
+        const help = document.createElement('p');
+        help.className = 'du-plus-hint';
+        help.textContent = 'No Discord: /coleira ligar e /coleira desligar (dono); /seguir (entrar voluntariamente); /parar (cancelar). Reinicie o Discord apos instalar ou alterar opcoes do plugin.';
+        body.appendChild(help);
+        const guide = document.createElement('a');
+        guide.href = 'https://github.com/rafaelkuhldeoliveira-max/discord-utis-mod-/tree/main/coleira-bot';
+        guide.textContent = 'Ver configuracao do bot no GitHub';
+        guide.target = '_blank'; guide.rel = 'noopener noreferrer';
+        guide.style.cssText = 'font-size:12px;color:#ff6586';
+        body.appendChild(guide);
+        if (coleiraListener) window.removeEventListener('du-coleira-response',coleiraListener);
+        coleiraListener = event => {
+          if (!body.isConnected) return;
+          const res = event.detail || {};
+          if (res.requestId !== latest.id) return;
+          if (!res.ok) { status.textContent = 'Erro: ' + (res.error || 'Bot offline'); return; }
+          const info = res.data || {};
+          status.textContent = 'Bot: ' + (info.ready?'conectado':'iniciando') +
+            ' | Coleira: ' + (info.active?'LIGADA':'DESLIGADA');
+          const ids = Array.isArray(info.subscribers) ? info.subscribers : [];
+          members.textContent = 'Participantes autorizados ('+ids.length+'): '+
+            (ids.length?ids.join(', '):'nenhum; use /seguir.');
+        };
+        window.addEventListener('du-coleira-response',coleiraListener);
+      }
       function start() {
         if (running) return;
         running = true;
@@ -579,5 +657,5 @@
         }, 2000);
         console.info(TAG,'FakeMuteX: F6 fake mute, F7 fake voice, indicadores no proprio Discord.');
       }
-      return { start, renderSettings, status: () => ({fakeMute, fakeVoice, syncState, statusText, lastAppliedAt, options}) };
+      return { start, renderSettings, renderColeira, status: () => ({fakeMute, fakeVoice, syncState, statusText, lastAppliedAt, options}) };
     })();
