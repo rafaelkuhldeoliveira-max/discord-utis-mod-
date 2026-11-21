@@ -13,7 +13,7 @@
       const DEFAULT_KEYBIND = Object.freeze({key:'F6', code:'F6', ctrl:false, shift:false, alt:false});
       const DEFAULT_VOICE_KEYBIND = Object.freeze({key:'F7', code:'F7', ctrl:false, shift:false, alt:false});
       const defaultOptions = { showMute:true, showVoice:true, showLocalStatus:true, enableMuteKeybind:true, muteKeybind:DEFAULT_KEYBIND,
-        enableVoiceKeybind:true, voiceKeybind:DEFAULT_VOICE_KEYBIND };
+        enableVoiceKeybind:true, voiceKeybind:DEFAULT_VOICE_KEYBIND, fakeMute:false, fakeVoice:false };
       const currentId = () => { try { return String(currentUser()?.id || 'anon'); } catch (_) { return 'anon'; } };
       const optKey = () => `DiscordUtils.plus.v2.${currentId()}.voiceOptions`;
       const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
@@ -30,8 +30,8 @@
           }
         }
       }
-      let fakeMute = false;
-      let fakeVoice = false;
+      let fakeMute = !!options.fakeMute;
+      let fakeVoice = !!options.fakeVoice;
       let activeSocket = null;
       let originalSend = null;
       let wrappedSend = null;
@@ -266,14 +266,19 @@
           : 'Fora da chamada: o modo sera aplicado ao entrar';
         return 'pending';
       }
+      function requestRestart() {
+        try { window.alert('ORACULO X: preferencia salva. Feche completamente o Discord pela bandeja do Windows e abra novamente para aplicar a configuracao.'); } catch (_) {}
+      }
       function toggle(kind) {
         if (kind === 'mute') fakeMute = !fakeMute;
         if (kind === 'voice') fakeVoice = !fakeVoice;
+        options.fakeMute = fakeMute; options.fakeVoice = fakeVoice; save();
         // Ambos os modos podem coexistir: Fake Voice sempre implica self_mute.
         // Envia imediatamente OP4 quando ha chamada; senao aplica na proxima entrada.
         const result = syncToDiscord();
         updateButtons();
         syncLocalStatus();
+        requestRestart();
         return result;
       }
       const micIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
@@ -283,6 +288,12 @@
         const style = document.createElement('style');
         style.id = STYLE_ID;
         style.textContent = `
+          /* Oraculo X: tema carmesim e preto */
+          #du-panel{--bg:#070609;--bg2:#12090e;--bg3:#220e17;--line:rgba(255,55,89,.23);--txt:#f8eaf0;--mut:#bfa1ae;--acc:#c51639;--red:#ff456a;box-shadow:0 24px 70px rgba(0,0,0,.82),0 0 28px rgba(197,22,57,.14)}
+          #du-panel .du-tab.active{background:rgba(197,22,57,.23);box-shadow:inset 0 0 0 1px rgba(255,69,106,.48)}
+          #du-panel .du-btn.acc:hover{background:#e1244c}
+          #du-panel .du-brand .du-g,#du-panel .du-stat .si{color:#ff456a}
+          #du-panel .du-tab:focus-visible{outline:2px solid #ff456a;outline-offset:2px}
           #${VOICE_ID}{display:flex;align-items:center;justify-content:center;gap:6px;margin:0 5px;flex:0 0 auto}
           #${VOICE_ID} button{display:inline-flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;padding:0;border:1px solid rgba(255,255,255,.13);border-radius:9px;background:var(--background-modifier-selected,#313338);color:var(--interactive-normal,#dbdee1);cursor:pointer;transition:background .12s,color .12s,border-color .12s}
           #${VOICE_ID} button:hover{background:var(--background-modifier-hover,#43444b);color:white}
@@ -367,6 +378,10 @@
       }
       function mount() {
         if (!document.body) return;
+        const title = document.querySelector('#du-panel .du-title');
+        if (title) title.textContent = 'ORACULO X';
+        const nav = document.querySelector('#du-nav-item .du-lbl');
+        if (nav) nav.textContent = 'Oraculo X';
         injectStyles();
         const target = findControls();
         if (!target) return;
@@ -480,12 +495,12 @@
         const button = document.createElement('button');button.type='button';
         button.textContent = on ? 'Ativado' : 'Desativado';
         button.setAttribute('aria-pressed', String(on));button.classList.toggle('active',on);
-        button.onclick = () => {change();renderSettings(body);};
+        button.onclick = () => {change();renderSettings(body); if (!/^Fake (Mute|Voice) —/.test(title)) requestRestart();};
         card.append(detail,button);body.appendChild(card);
       }
       function renderSettings(body) {
         body.replaceChildren();
-        heading(body, 'Estado da chamada', 'O Fake Mute envia self_mute; o Fake Voice envia self_mute e self_deaf ao Gateway. O microfone e os fones continuam controlados pelo Discord local.');
+        heading(body, 'ORACULO X | Estado da chamada', 'O Fake Mute envia self_mute; o Fake Voice envia self_mute e self_deaf ao Gateway. O microfone e os fones continuam controlados pelo Discord local.');
         const status = document.createElement('div');status.className='du-plus-status';
         status.classList.toggle('pending', syncState === 'pending');
         status.classList.toggle('error', syncState === 'error');
@@ -536,7 +551,7 @@
         });
         body.appendChild(voiceBind);
         const hint = document.createElement('p');hint.className='du-plus-hint';
-        hint.textContent='Quando estiver fora de uma chamada, os modos ficam preparados. Ao conectar, o estado será enviado. Se estiver usando mute/deafen real, essas opções locais continuam valendo.';
+        hint.textContent='Fora da chamada, os modos ficam preparados e aplicam ao entrar. As escolhas ficam salvas por conta. Depois de alterar uma opcao, feche totalmente o Discord e reabra.';
         body.appendChild(hint);
       }
       function start() {
@@ -548,6 +563,7 @@
         hookSocket();
         subscribeVoiceEvents();
         mount();
+        if (fakeMute || fakeVoice) syncToDiscord();
         document.addEventListener('keydown',handleVoiceShortcuts,true);
         new MutationObserver(scheduleMount).observe(document.body, { childList:true, subtree:true });
         // Reconexoes podem ocorrer sem evento Flux exposto em algumas builds.
