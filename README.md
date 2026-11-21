@@ -2,6 +2,14 @@
 
 **Tema:** preto + vermelho carmesim. O instalador passou a usar o renderer GLOBAL do Oraculo X; preserva a aba **Missoes**, o acompanhamento de **Orbs** e as demais funcoes do arquivo `discordutils-global/renderer.js`, sem instalar um segundo interceptor de voz.
 
+## Missões e Orbs — visual Oráculo X
+
+- A aba **Missões** e o contador de **Orbs** permanecem no renderer global.
+- Cartões de missões, filtros, recompensa, botões, notificações, executor flutuante e barras de progresso usam vermelho carmesim e preto, em vez dos antigos acentos azul/roxo.
+- O progresso mostra **tempo realizado / duração da tarefa / restante estimado** usando os segundos reportados pela missão; o indicador não é um cronômetro independente nem garante a conclusão em determinada hora.
+- O tema altera somente **apresentação e formatação do progresso**. Não reduz o tempo exigido nem modifica as rotas de execução ou resgate do Discord.
+- Testes de formato, limites, barra de progresso, cores, sintaxe e hashes do instalador constam do workflow do GitHub. Nenhum teste automatizado substitui validação com conta real.
+
 ## Voz — alteracoes sem reiniciar
 
 - **Fake Mute**: botao pequeno, atalho **F6**, envia `self_mute=true` e preserva o microfone local.
