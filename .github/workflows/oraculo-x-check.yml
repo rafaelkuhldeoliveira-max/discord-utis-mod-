@@ -40,5 +40,7 @@ jobs:
             $parseErrors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+      - name: Verificar hashes dos dois modulos instalados
+        run: sha256sum discordutils-global/renderer.js discordutils-global/inject.js
       - name: Testar voz, vinculo por ID, checksums e consentimento
         run: node --test test/oraculo-x.test.cjs coleira-bot/test/policy.test.js
